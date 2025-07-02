@@ -1,3 +1,4 @@
+// app/(tabs)/_layout.tsx
 import { Tabs } from 'expo-router';
 import { Home, Camera, ClipboardList, ChefHat, ShoppingCart, User } from 'lucide-react-native';
 import { StyleSheet } from 'react-native';
@@ -71,9 +72,9 @@ const styles = StyleSheet.create({
   },
   tabBarLabel: {
     fontFamily: 'Inter-Medium',
-    fontSize: 10, // slightly smaller
+    fontSize: 10,
   },
   tabBarItem: {
-    paddingHorizontal: 0, // minimize horizontal padding
+    paddingHorizontal: 0,
   },
 });

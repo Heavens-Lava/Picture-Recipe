@@ -6,7 +6,8 @@ module.exports = function(api) {
       ['babel-plugin-dotenv-import', {
         moduleName: '@env',
         path: '.env',
-      }]
+      }],
+      ['react-native-reanimated/plugin'], // 👈 ensure this line exists!
     ]
   };
 };

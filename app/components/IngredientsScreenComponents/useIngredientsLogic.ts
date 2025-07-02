@@ -99,11 +99,14 @@ export const useIngredientsLogic = ({ detailedRecipes = [] }: UseIngredientsLogi
 
       const instructions = await generateInstructions(recipeName, relevantIngredients);
 
+      console.log('-----------------Generated instructions:', instructions);
+      console.log('-----------------Relevant ingredients:', relevantIngredients);
+
       const recipeData = {
         title: recipeName,
         recipe_name: recipeName,
         ingredients: relevantIngredients,
-        instructions,
+        
         cookTime: '15-30 min',
         servings: 2,
         difficulty: 'Easy',

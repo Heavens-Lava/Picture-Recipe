@@ -180,5 +180,15 @@ export const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#059669', // Green fill to match app theme
     borderRadius: 2,
+  },  
+  lottieIcon: {
+    width: 60,
+    height: 60,
+    marginHorizontal: 44,
   },
+  headerTitleRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+},
 });

@@ -49,8 +49,27 @@ export const saveRecipeToSupabase = async (recipe: {
 
     // ✅ Generate instructions using OpenAI if missing or placeholder
     if (!recipe.instructions || recipe.instructions.includes('Instructions will be generated')) {
-      const prompt = `Create step-by-step cooking instructions for a recipe called "${recipe.recipe_name}" using only these ingredients: ${ingredientsArray.join(', ')}. Do not assume any other ingredients are available. Keep it clear and concise.`;
-      try {
+const prompt = `Generate a complete recipe using these exact ingredients: ${ingredientsArray.join(', ')}.
+
+Requirements:
+- Use ONLY the provided ingredients - do not add or suggest any others
+- Start directly with the ingredients list showing quantities
+- Include a list of appropriate cooking tools needed
+- Follow with numbered cooking steps
+- Do not include a recipe title, introduction, or conversational phrases
+- Focus on practical cooking techniques and timing
+- Include specific cooking times and temperatures where relevant
+- End when the dish is ready to serve
+
+Format:
+**Ingredients:**
+[List with quantities]
+
+**Tools Needed:**
+[List of cooking tools/equipment]
+
+**Instructions:**
+[Numbered list of clear, actionable steps]`;    try {
         const completion = await openai.chat.completions.create({
           model: 'gpt-4o',
           messages: [{ role: 'user', content: prompt }],
@@ -62,7 +81,7 @@ export const saveRecipeToSupabase = async (recipe: {
         recipe.instructions = 'Instructions are not available at the moment. Please try again later.';
       }
     }
-
+    
     const { data: recipeData, error: insertRecipeError } = await supabase
       .from('recipes')
       .insert({
@@ -87,6 +106,7 @@ export const saveRecipeToSupabase = async (recipe: {
 
     console.log('Recipe saved with ingredients:', recipe.recipe_name);
     console.log('Ingredients saved as array:', ingredientsArray);
+    console.log('-------------------------Checking if ingredients is getting put in correctly:', ingredientsArray);
 
     if (recipe.ingredients && recipe.ingredients.length > 0) {
       await saveIngredientsForRecipe(recipeData.id, recipe.ingredients);

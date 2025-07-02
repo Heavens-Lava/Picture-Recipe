@@ -14,6 +14,7 @@ import { Clock, Users, Flame, Star, RefreshCw } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { useRouter } from 'expo-router';
 import { styles } from '../styles/Recipes.styles';
+import LottieView from 'lottie-react-native';
 
 interface Recipe {
   id: string;
@@ -131,9 +132,18 @@ export default function RecipesTab() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Recipe Suggestions</Text>
-        <Text style={styles.headerSubtitle}>Based on your fridge contents</Text>
-      </View>
+  <View style={styles.headerTitleRow}>
+    <Text style={styles.headerTitle}>Recipe Suggestions</Text>
+    <LottieView
+      source={require('../../assets/animations/pan.json')}
+      autoPlay
+      loop
+      style={styles.lottieIcon}
+    />
+  </View>
+  <Text style={styles.headerSubtitle}>Based on your fridge contents</Text>
+</View>
+
 
       <View style={styles.filterContainer}>
         <TouchableOpacity
