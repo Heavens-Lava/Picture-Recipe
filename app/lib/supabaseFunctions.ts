@@ -52,6 +52,8 @@ export const saveRecipeToSupabase = async (recipe: {
     // If no ingredients provided, use empty array instead of empty string
     const ingredientsArray = recipe.ingredients || [];
 
+
+    console.log("availableIngredients in the database: ", recipe.availableIngredients ); 
     // STEP 4: Insert the new recipe into the database
     // This saves all the main recipe data including the ingredients as an array
     const { data: recipeData, error: insertRecipeError } = await supabase

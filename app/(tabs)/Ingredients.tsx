@@ -1,18 +1,16 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 
-// import Components
 import { IngredientsDisplay } from '../components/IngredientsScreenComponents/IngredientsDisplay';
 import { RecipeSuggestions } from '../components/IngredientsScreenComponents/RecipeSuggestions';
 import { EmptyState } from '../components/IngredientsScreenComponents/EmptyState';
 import { BottomActions } from '../components/IngredientsScreenComponents/BottomActions';
+
 import { useIngredientsLogic } from '../components/IngredientsScreenComponents/useIngredientsLogic';
 import type { ParsedRecipe } from '../components/CameraScreenComponents/AIResponseParser';
-// import Styles
 import styles from '../styles/Ingredients.styles';
-import { useEffect, useState } from 'react';
 
 interface IngredientsScreenParams {
   ingredients?: string | string[];
@@ -20,60 +18,59 @@ interface IngredientsScreenParams {
   photoUri?: string;
   generatedImageUrl?: string;
   savedId?: string;
-  detailedRecipes?: string;
+  detailedRecipes?: string; // JSON string of ParsedRecipe[]
 }
 
 export default function IngredientsScreen() {
   const {
     ingredients,
     recipes,
-    photoUri,
-    generatedImageUrl,
-    savedId,
-    detailedRecipes 
+    detailedRecipes,
   } = useLocalSearchParams<IngredientsScreenParams>();
 
-
-
-  const {
-    isSaving,
-    removedRecipes,
-    parseArrayParam,
-    getOrCreateAnimation,
-    handleAddRecipe,
-  } = useIngredientsLogic();
-
-  // 🔄 State to track parsed ingredients and recipes
+  // 🔄 Local state
   const [ingredientList, setIngredientList] = useState<string[]>([]);
   const [recipeList, setRecipeList] = useState<string[]>([]);
   const [parsedDetailedRecipes, setParsedDetailedRecipes] = useState<ParsedRecipe[]>([]);
 
-  // ✅ React to updates in navigation params
+  // ✅ Run on mount/param update
   useEffect(() => {
-  const parsedIngredients = parseArrayParam(ingredients);
-  const parsedRecipes = parseArrayParam(recipes);
-  setIngredientList(parsedIngredients);
-  setRecipeList(parsedRecipes);
+    const parseArrayParam = (param: string | string[] | undefined): string[] => {
+      if (!param) return [];
+      if (Array.isArray(param)) return param.map(item => String(item).trim()).filter(Boolean);
+      try {
+        const parsed = JSON.parse(param);
+        if (Array.isArray(parsed)) return parsed.map(item => String(item).trim()).filter(Boolean);
+      } catch {}
+      return param.split(',').map(item => item.trim()).filter(Boolean);
+    };
 
+    setIngredientList(parseArrayParam(ingredients));
+    setRecipeList(parseArrayParam(recipes));
 
-
-  if (typeof detailedRecipes === 'string') {
-    try {
-      const parsed = JSON.parse(detailedRecipes);
-      setParsedDetailedRecipes(parsed);
-      console.log('✅ Parsed detailedRecipes in IngredientsScreen:', parsed);
-    } catch (err) {
-      console.error('❌ Failed to parse detailedRecipes:', err);
+    if (typeof detailedRecipes === 'string') {
+      try {
+        const parsed = JSON.parse(detailedRecipes);
+        setParsedDetailedRecipes(parsed);
+        console.log('✅ Parsed detailedRecipes in IngredientsScreen:', parsed);
+      } catch (err) {
+        console.error('❌ Failed to parse detailedRecipes:', err);
+      }
     }
-  }
-}, [ingredients, recipes, detailedRecipes]);
+  }, [ingredients, recipes, detailedRecipes]);
 
-  // Handle empty states
+  // ✅ Use logic hook AFTER detailed recipes are set up
+  const {
+    isSaving,
+    removedRecipes,
+    getOrCreateAnimation,
+    handleAddRecipe,
+  } = useIngredientsLogic({ detailedRecipes: parsedDetailedRecipes });
+
   if (!ingredientList || ingredientList.length === 0) {
     return <EmptyState />;
   }
 
-  // Filter out removed recipes to hide them immediately
   const visibleRecipes = recipeList.filter(recipe => !removedRecipes.has(recipe));
 
   return (

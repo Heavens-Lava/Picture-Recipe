@@ -22,8 +22,6 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
   isSaving,
   detailedRecipe,
 }) => {
-
-     console.log("give me: ", detailedRecipe);
   return (
     <Animated.View
       style={[
