@@ -6,6 +6,7 @@ import {
   extractRecipeIngredients,
   parseRecipeString,
 } from '../../lib/filteringFunctions';
+import openai from '../../lib/openai'; 
 import type { ParsedRecipe } from '../CameraScreenComponents/AIResponseParser';
 
 interface UseIngredientsLogicProps {
@@ -14,7 +15,6 @@ interface UseIngredientsLogicProps {
 
 /**
  * Custom React hook that manages ingredients and recipe saving logic
- * Accepts optional detailedRecipes to replace ingredient extraction logic
  */
 export const useIngredientsLogic = ({ detailedRecipes = [] }: UseIngredientsLogicProps = {}) => {
   const router = useRouter();
@@ -60,48 +60,64 @@ export const useIngredientsLogic = ({ detailedRecipes = [] }: UseIngredientsLogi
   };
 
   /**
-   * Adds recipe to Supabase with filtering ingredients.
-   * Uses detailedRecipes to get ingredients if available, else fallback to extractRecipeIngredients.
+   * Generate cooking instructions using GPT-4o based on recipe name and ingredients.
+   */
+  const generateInstructions = async (recipeName: string, ingredients: string[]): Promise<string> => {
+    try {
+      const prompt = `Create clear, beginner-friendly cooking instructions for a recipe called "${recipeName}" using the following ingredients:\n\n${ingredients.join(', ')}.`;
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+      });
+
+      return completion.choices[0].message.content.trim();
+    } catch (error) {
+      console.error('Error generating instructions:', error);
+      return 'Instructions will be generated when you view the recipe.';
+    }
+  };
+
+  /**
+   * Adds a recipe to Supabase with AI-generated instructions at save time.
    */
   const handleAddRecipe = async (recipe: string, allFridgeIngredients: string[]) => {
     if (isSaving) return;
 
     setIsSaving(true);
     try {
-      // Find detailed recipe matching the recipe name
       const detailedRecipe = detailedRecipes.find(
         (d) => d.name.toLowerCase() === recipe.toLowerCase()
       );
 
-      // Use detailedRecipe's availableIngredients if found, else fallback extraction
-      const relevantIngredients = detailedRecipe?.availableIngredients.length
+      const relevantIngredients = detailedRecipe?.availableIngredients?.length
         ? detailedRecipe.availableIngredients
         : extractRecipeIngredients(recipe, allFridgeIngredients);
 
       const { recipeName, description } = parseRecipeString(recipe);
 
-const recipeData = {
-  title: recipeName,
-  recipe_name: recipeName,
-  ingredients: relevantIngredients,
-  instructions: description || 'Instructions will be generated when you view the recipe.',
-  cookTime: '15-30 min',             // camelCase here
-  servings: 2,
-  difficulty: 'Easy',
-  rating: 4,
-  availableIngredients: relevantIngredients.length, // camelCase here
-  totalIngredients: relevantIngredients.length,     // camelCase here
-  created_at: new Date().toISOString(),             // if your DB uses snake_case, you can rename here or handle in DB
-};
+      const instructions = await generateInstructions(recipeName, relevantIngredients);
 
+      const recipeData = {
+        title: recipeName,
+        recipe_name: recipeName,
+        ingredients: relevantIngredients,
+        instructions,
+        cookTime: '15-30 min',
+        servings: 2,
+        difficulty: 'Easy',
+        rating: 4,
+        availableIngredients: relevantIngredients.length,
+        totalIngredients: relevantIngredients.length,
+        created_at: new Date().toISOString(),
+      };
 
       const result = await saveRecipeToSupabase(recipeData);
 
       if (result) {
-
-      console.log("detailedRecipe:", detailedRecipe);
-      console.log("Lets see: ",detailedRecipe?.availableIngredients);
-      console.log( "relevantIngredients-----------",relevantIngredients.length);
+        console.log('detailedRecipe:', detailedRecipe);
+        console.log('Using ingredients:', relevantIngredients);
 
         animateRecipeRemoval(recipe);
         Alert.alert(

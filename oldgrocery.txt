@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, Check, ShoppingCart, Trash2, Camera, List } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
-import { supabase } from '../lib/supabase';
+import { Plus, Check, ShoppingCart, Trash2 } from 'lucide-react-native';
 
 interface GroceryItem {
   id: string;
@@ -19,24 +17,20 @@ interface GroceryItem {
   inCart: boolean;
 }
 
+const sampleGroceryItems: GroceryItem[] = [
+  { id: '1', name: 'Greek Yogurt', category: 'Dairy', needed: true, inCart: false },
+  { id: '2', name: 'Fresh Spinach', category: 'Vegetables', needed: true, inCart: false },
+  { id: '3', name: 'Chicken Breast', category: 'Meat', needed: true, inCart: false },
+  { id: '4', name: 'Avocados', category: 'Produce', needed: true, inCart: true },
+  { id: '5', name: 'Olive Oil', category: 'Pantry', needed: true, inCart: false },
+  { id: '6', name: 'Bell Peppers', category: 'Vegetables', needed: true, inCart: false },
+  { id: '7', name: 'Brown Rice', category: 'Grains', needed: true, inCart: true },
+  { id: '8', name: 'Salmon Fillet', category: 'Seafood', needed: true, inCart: false },
+];
+
 export default function GroceryTab() {
-  const [items, setItems] = useState<GroceryItem[]>([]);
+  const [items, setItems] = useState<GroceryItem[]>(sampleGroceryItems);
   const [selectedTab, setSelectedTab] = useState<'needed' | 'cart'>('needed');
-  const navigation = useNavigation();
-
-  // This would be replaced with your actual database fetch
-  useEffect(() => {
-    // fetchGroceryItemsFromDatabase();
-  }, []);
-
-// const fetchGroceryItemsFromDatabase = async () => {
-//   try {
-//     const data = await supabase.getGroceryItems();
-//     setItems(data);
-//   } catch (error) {
-//     console.error('Error fetching grocery items:', error);
-//   }
-// };
 
   const toggleItemCart = (id: string) => {
     setItems(prevItems =>
@@ -48,14 +42,6 @@ export default function GroceryTab() {
 
   const removeItem = (id: string) => {
     setItems(prevItems => prevItems.filter(item => item.id !== id));
-  };
-
-  const navigateToCamera = () => {
-    navigation.navigate('CameraScreen' as never);
-  };
-
-  const navigateToIngredients = () => {
-    navigation.navigate('Ingredients' as never);
   };
 
   const neededItems = items.filter(item => item.needed && !item.inCart);
@@ -106,38 +92,6 @@ export default function GroceryTab() {
     ));
   };
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyState}>
-      <ShoppingCart size={64} color="#D1D5DB" />
-      <Text style={styles.emptyStateTitle}>No grocery items yet</Text>
-      <Text style={styles.emptyStateText}>
-        Get started by adding ingredients from your fridge or taking a photo
-      </Text>
-      
-      <View style={styles.emptyButtonContainer}>
-        <TouchableOpacity
-          style={styles.emptyActionButton}
-          onPress={navigateToCamera}
-        >
-          <Camera size={20} color="#059669" />
-          <Text style={styles.emptyActionButtonText}>Take Photo</Text>
-          <Text style={styles.emptyActionButtonSubtext}>Scan your fridge</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.emptyActionButton}
-          onPress={navigateToIngredients}
-        >
-          <List size={20} color="#059669" />
-          <Text style={styles.emptyActionButtonText}>View Ingredients</Text>
-          <Text style={styles.emptyActionButtonSubtext}>Browse your pantry</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  const hasAnyItems = items.length > 0;
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -147,50 +101,46 @@ export default function GroceryTab() {
         </Text>
       </View>
 
-      {hasAnyItems && (
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              selectedTab === 'needed' && styles.tabButtonActive
-            ]}
-            onPress={() => setSelectedTab('needed')}
-          >
-            <ShoppingCart size={20} color={selectedTab === 'needed' ? '#FFFFFF' : '#6B7280'} />
-            <Text style={[
-              styles.tabButtonText,
-              selectedTab === 'needed' && styles.tabButtonTextActive
-            ]}>
-              Need to Buy ({neededItems.length})
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              selectedTab === 'cart' && styles.tabButtonActive
-            ]}
-            onPress={() => setSelectedTab('cart')}
-          >
-            <Check size={20} color={selectedTab === 'cart' ? '#FFFFFF' : '#6B7280'} />
-            <Text style={[
-              styles.tabButtonText,
-              selectedTab === 'cart' && styles.tabButtonTextActive
-            ]}>
-              In Cart ({cartItems.length})
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[
+            styles.tabButton,
+            selectedTab === 'needed' && styles.tabButtonActive
+          ]}
+          onPress={() => setSelectedTab('needed')}
+        >
+          <ShoppingCart size={20} color={selectedTab === 'needed' ? '#FFFFFF' : '#6B7280'} />
+          <Text style={[
+            styles.tabButtonText,
+            selectedTab === 'needed' && styles.tabButtonTextActive
+          ]}>
+            Need to Buy ({neededItems.length})
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[
+            styles.tabButton,
+            selectedTab === 'cart' && styles.tabButtonActive
+          ]}
+          onPress={() => setSelectedTab('cart')}
+        >
+          <Check size={20} color={selectedTab === 'cart' ? '#FFFFFF' : '#6B7280'} />
+          <Text style={[
+            styles.tabButtonText,
+            selectedTab === 'cart' && styles.tabButtonTextActive
+          ]}>
+            In Cart ({cartItems.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {!hasAnyItems ? (
-          renderEmptyState()
-        ) : selectedTab === 'needed' ? (
+        {selectedTab === 'needed' ? (
           <>
             {neededItems.length > 0 ? (
               renderItemsByCategory(neededItems, true)
@@ -221,12 +171,10 @@ export default function GroceryTab() {
         )}
       </ScrollView>
 
-      {hasAnyItems && (
-        <TouchableOpacity style={styles.addButton}>
-          <Plus size={24} color="#FFFFFF" />
-          <Text style={styles.addButtonText}>Add Item</Text>
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity style={styles.addButton}>
+        <Plus size={24} color="#FFFFFF" />
+        <Text style={styles.addButtonText}>Add Item</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -357,42 +305,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: '#6B7280',
     textAlign: 'center',
-    marginBottom: 32,
-    paddingHorizontal: 24,
-    lineHeight: 24,
-  },
-  emptyButtonContainer: {
-    width: '100%',
-    paddingHorizontal: 24,
-    gap: 16,
-  },
-  emptyActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  emptyActionButtonText: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: '#111827',
-    marginLeft: 16,
-  },
-  emptyActionButtonSubtext: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
-    marginLeft: 16,
   },
   addButton: {
     flexDirection: 'row',
