@@ -24,16 +24,19 @@ export default function Signup() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleGoBack = () => {
-    router.back();
-  };
+  const handleGoBack = () => router.back();
 
   const handleSignup = async () => {
+    console.log('🔧 Inputs:', { name, email, password, confirmPassword });
+
     if (!name || !email || !password || !confirmPassword) {
+      console.warn('⚠️ Missing input fields');
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
+
     if (password !== confirmPassword) {
+      console.warn('⚠️ Passwords do not match');
       Alert.alert('Error', 'Passwords do not match');
       return;
     }
@@ -42,56 +45,51 @@ export default function Signup() {
     console.log('🔄 Starting signup process...');
 
     try {
-      // 1. Sign up user
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
       });
 
-      console.log('📥 Signup response:', data);
+      console.log('📥 Signup response:', JSON.stringify(data, null, 2));
 
       if (signUpError) {
         console.error('❌ Signup error:', signUpError.message);
         Alert.alert('Signup Error', signUpError.message);
-        setLoading(false);
         return;
       }
 
-      // 2. If signup successful, insert profile row
-      if (data.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([
-            {
-              id: data.user.id,
-              email: email.trim(),
-              name: name.trim(),
-            },
-          ]);
-
-        if (profileError) {
-          console.error('❌ Profile insert error:', profileError.message);
-          Alert.alert('Profile Error', 'Failed to create profile. Please try again.');
-          setLoading(false);
-          return;
-        } else {
-          console.log('✅ Profile inserted successfully');
-        }
+      if (!data.user) {
+        console.error('❌ No user returned after signup');
+        return;
       }
 
-      // 3. Success handling
-      if (data.user && !data.session) {
-        console.log('📧 Email confirmation required — session not returned');
-        Alert.alert(
-          'Check your email',
-          'We sent you a confirmation link to complete your registration.',
-          [{ text: 'OK', onPress: () => router.back() }]
-        );
+      console.log('🧠 User ID returned:', data.user.id);
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert([
+          {
+            id: data.user.id,
+            email: email.trim(),
+            name: name.trim(),
+          },
+        ]);
+
+      if (profileError) {
+        console.error('❌ Profile insert error:', profileError.message);
+        Alert.alert('Profile Error', 'Failed to create profile. Please try again.');
+        return;
+      }
+
+      console.log('✅ Profile inserted successfully');
+
+      if (!data.session) {
+        console.log('📧 Email confirmation required — no session returned');
+        router.replace('/confirmEmail');
       } else {
-        console.log('✅ Account created and user signed in');
-        console.log('🔐 Session data:', data.session);
+        console.log('✅ User signed in immediately with session:', data.session);
         Alert.alert('Success', 'Account created successfully!', [
-          { text: 'OK', onPress: () => router.back() },
+          { text: 'OK', onPress: () => router.replace('/profile') },
         ]);
       }
     } catch (error) {

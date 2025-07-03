@@ -33,16 +33,29 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
+
       if (error) {
         Alert.alert('Login Error', error.message);
         return;
       }
+
+      if (!data.session) {
+        Alert.alert(
+          'Email Not Confirmed',
+          'Please confirm your email before logging in.'
+        );
+        return;
+      }
+
       Alert.alert('Success', 'Logged in successfully!', [
-        { text: 'OK', onPress: () => router.back() },
+        {
+          text: 'OK',
+          onPress: () => router.replace('/Profile'), // Change this to your main screen
+        },
       ]);
     } catch (error) {
       Alert.alert('Error', 'An unexpected error occurred. Please try again.');
@@ -76,7 +89,7 @@ export default function Login() {
               autoCapitalize="none"
               placeholderTextColor="#9CA3AF"
             />
-          </View>e
+          </View>
 
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Password</Text>
@@ -106,7 +119,7 @@ export default function Login() {
 
           <TouchableOpacity onPress={() => router.replace('/Signup')} style={styles.switchLink}>
             <Text style={styles.switchText}>
-              Don't have an account? <Text style={styles.switchTextHighlight}>Sign up</Text>
+              Don’t have an account? <Text style={styles.switchTextHighlight}>Sign up</Text>
             </Text>
           </TouchableOpacity>
         </ScrollView>

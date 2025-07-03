@@ -5,10 +5,26 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { User, Settings, Camera, ChefHat, ShoppingCart, Heart, Bell, CircleHelp as HelpCircle, Share, Star, LogIn, UserPlus, LogOut, Alert } from 'lucide-react-native';
-import { supabase } from '../lib/supabase'; // Adjust path to your supabase config
+import {
+  User,
+  Settings,
+  Camera,
+  ChefHat,
+  ShoppingCart,
+  Heart,
+  Bell,
+  CircleHelp as HelpCircle,
+  Share,
+  Star,
+  LogIn,
+  UserPlus,
+  LogOut,
+} from 'lucide-react-native';
+import { supabase } from '../lib/supabase';
 import { router } from 'expo-router';
 
 interface StatItem {
@@ -31,16 +47,14 @@ interface UserData {
   id: string;
 }
 
-export default function ProfileTab({ navigation }: { navigation?: any }) {
+export default function ProfileTab() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userData, setUserData] = useState<UserData>({ name: '', email: '', id: '' });
   const [initialLoading, setInitialLoading] = useState(true);
 
-  // Check if user is already authenticated on component mount
   useEffect(() => {
     checkAuthStatus();
-    
-    // Listen for auth state changes
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         await loadUserProfile(session.user);
@@ -61,6 +75,9 @@ export default function ProfileTab({ navigation }: { navigation?: any }) {
       if (session?.user) {
         await loadUserProfile(session.user);
         setIsAuthenticated(true);
+      } else {
+        setIsAuthenticated(false);
+        setUserData({ name: '', email: '', id: '' });
       }
     } catch (error) {
       console.error('Error checking auth status:', error);
@@ -71,7 +88,6 @@ export default function ProfileTab({ navigation }: { navigation?: any }) {
 
   const loadUserProfile = async (user: any) => {
     try {
-      // Try to get user profile from your profiles table
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
@@ -89,7 +105,6 @@ export default function ProfileTab({ navigation }: { navigation?: any }) {
       });
     } catch (error) {
       console.error('Error loading user profile:', error);
-      // Fallback to user metadata
       setUserData({
         id: user.id,
         email: user.email || '',
@@ -97,18 +112,14 @@ export default function ProfileTab({ navigation }: { navigation?: any }) {
       });
     }
   };
-  
 
-  
   const handleLogin = () => {
-  router.push('/Login');
-
+    router.push('/Login');
   };
 
-const handleSignup = () => {
-  router.push('/Signup');
-};
-
+  const handleSignup = () => {
+    router.push('/Signup');
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -124,6 +135,9 @@ const handleSignup = () => {
               const { error } = await supabase.auth.signOut();
               if (error) {
                 Alert.alert('Error', 'Failed to logout. Please try again.');
+              } else {
+                setIsAuthenticated(false);
+                setUserData({ name: '', email: '', id: '' });
               }
             } catch (error) {
               console.error('Logout error:', error);
@@ -224,10 +238,9 @@ const handleSignup = () => {
   const renderMenuOption = (option: MenuOption, index: number) => (
     <TouchableOpacity key={index} style={styles.menuOption} onPress={option.onPress}>
       {option.icon}
-      <Text style={[
-        styles.menuOptionText,
-        option.isDestructive && { color: '#EF4444' }
-      ]}>
+      <Text
+        style={[styles.menuOptionText, option.isDestructive && { color: '#EF4444' }]}
+      >
         {option.label}
       </Text>
     </TouchableOpacity>
@@ -285,7 +298,8 @@ const handleSignup = () => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading...</Text>
+          <ActivityIndicator size="large" color="#059669" />
+          <Text style={styles.loadingText}>Checking login status...</Text>
         </View>
       </SafeAreaView>
     );
@@ -293,7 +307,7 @@ const handleSignup = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -310,9 +324,7 @@ const handleSignup = () => {
 
             <View style={styles.statsContainer}>
               <Text style={styles.sectionTitle}>Your Activity</Text>
-              <View style={styles.statsGrid}>
-                {stats.map(renderStatCard)}
-              </View>
+              <View style={styles.statsGrid}>{stats.map(renderStatCard)}</View>
             </View>
 
             <View style={styles.achievementsContainer}>
@@ -335,12 +347,8 @@ const handleSignup = () => {
         )}
 
         <View style={styles.menuContainer}>
-          <Text style={styles.sectionTitle}>
-            {isAuthenticated ? 'Settings' : 'General'}
-          </Text>
-          <View style={styles.menuList}>
-            {getMenuOptions().map(renderMenuOption)}
-          </View>
+          <Text style={styles.sectionTitle}>{isAuthenticated ? 'Settings' : 'General'}</Text>
+          <View style={styles.menuList}>{getMenuOptions().map(renderMenuOption)}</View>
         </View>
 
         <View style={styles.appInfo}>
@@ -353,30 +361,20 @@ const handleSignup = () => {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 24,
-  },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  scrollView: { flex: 1 },
+  scrollContent: { padding: 24 },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
+    marginTop: 12,
     fontSize: 16,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
+    color: '#059669',
   },
-  // Guest/Unauthenticated styles
-  guestContainer: {
-    marginBottom: 24,
-  },
+  guestContainer: { marginBottom: 24 },
   guestHeader: {
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
@@ -391,14 +389,13 @@ const styles = StyleSheet.create({
   },
   guestTitle: {
     fontSize: 24,
-    fontFamily: 'Inter-Bold',
+    fontWeight: '700',
     color: '#111827',
     marginBottom: 8,
     textAlign: 'center',
   },
   guestSubtitle: {
     fontSize: 16,
-    fontFamily: 'Inter-Regular',
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 24,
@@ -406,6 +403,8 @@ const styles = StyleSheet.create({
   authButtonsContainer: {
     gap: 12,
     marginBottom: 24,
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   loginButton: {
     flexDirection: 'row',
@@ -419,8 +418,8 @@ const styles = StyleSheet.create({
   },
   loginButtonText: {
     fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
     color: '#FFFFFF',
+    fontWeight: '600',
   },
   signupButton: {
     flexDirection: 'row',
@@ -436,8 +435,8 @@ const styles = StyleSheet.create({
   },
   signupButtonText: {
     fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
     color: '#059669',
+    fontWeight: '600',
   },
   guestFeatures: {
     backgroundColor: '#FFFFFF',
@@ -451,7 +450,7 @@ const styles = StyleSheet.create({
   },
   featuresTitle: {
     fontSize: 18,
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
     color: '#111827',
     marginBottom: 16,
   },
@@ -465,10 +464,8 @@ const styles = StyleSheet.create({
   },
   featureText: {
     fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
+    color: '#059669',
   },
-  // Authenticated user styles
   profileHeader: {
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
@@ -492,13 +489,12 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 24,
-    fontFamily: 'Inter-Bold',
+    fontWeight: '700',
     color: '#111827',
     marginBottom: 4,
   },
   userEmail: {
     fontSize: 16,
-    fontFamily: 'Inter-Regular',
     color: '#6B7280',
   },
   statsContainer: {
@@ -506,7 +502,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
     color: '#111827',
     marginBottom: 16,
   },
@@ -538,13 +534,12 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 24,
-    fontFamily: 'Inter-Bold',
+    fontWeight: '700',
     color: '#111827',
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 14,
-    fontFamily: 'Inter-Regular',
     color: '#6B7280',
     textAlign: 'center',
   },
@@ -577,56 +572,49 @@ const styles = StyleSheet.create({
   },
   achievementTitle: {
     fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
     color: '#111827',
-    marginBottom: 4,
-  },
-  achievementDescription: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
-  },
-  menuContainer: {
-    marginBottom: 24,
-  },
-  menuList: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  menuOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  menuOptionText: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: 'Inter-Regular',
-    color: '#111827',
-    marginLeft: 16,
-  },
-  appInfo: {
-    alignItems: 'center',
-    paddingVertical: 24,
-  },
-  appName: {
-    fontSize: 18,
-    fontFamily: 'Inter-SemiBold',
-    color: '#059669',
-    marginBottom: 4,
-  },
-  appVersion: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
-  },
+marginBottom: 4,
+},
+achievementDescription: {
+fontSize: 14,
+color: '#6B7280',
+},
+menuContainer: {
+marginBottom: 24,
+},
+menuList: {
+backgroundColor: '#FFFFFF',
+borderRadius: 16,
+paddingVertical: 8,
+paddingHorizontal: 4,
+},
+menuOption: {
+flexDirection: 'row',
+alignItems: 'center',
+gap: 16,
+paddingVertical: 16,
+paddingHorizontal: 16,
+borderBottomWidth: 1,
+borderBottomColor: '#F3F4F6',
+},
+menuOptionText: {
+fontSize: 16,
+color: '#374151',
+},
+appInfo: {
+alignItems: 'center',
+marginTop: 24,
+marginBottom: 48,
+},
+appName: {
+fontSize: 14,
+fontWeight: '600',
+color: '#6B7280',
+},
+appVersion: {
+fontSize: 12,
+color: '#9CA3AF',
+},
 });
+   
