@@ -54,7 +54,7 @@ export default function Login() {
       Alert.alert('Success', 'Logged in successfully!', [
         {
           text: 'OK',
-          onPress: () => router.replace('/Profile'), // Change this to your main screen
+          onPress: () => router.replace('/profile'), // Fixed: Changed from '/Profile' to '/profile'
         },
       ]);
     } catch (error) {
@@ -119,7 +119,7 @@ export default function Login() {
 
           <TouchableOpacity onPress={() => router.replace('/Signup')} style={styles.switchLink}>
             <Text style={styles.switchText}>
-              Don’t have an account? <Text style={styles.switchTextHighlight}>Sign up</Text>
+              Don't have an account? <Text style={styles.switchTextHighlight}>Sign up</Text>
             </Text>
           </TouchableOpacity>
         </ScrollView>

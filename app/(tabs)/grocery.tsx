@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -41,6 +41,11 @@ export default function GroceryTab() {
   const toastTranslateY = useRef(new Animated.Value(-50)).current;
   const removedToastOpacity = useRef(new Animated.Value(0)).current;
   const removedToastTranslateY = useRef(new Animated.Value(-50)).current;
+  
+  // Add debounce mechanism to prevent rapid updates
+  const processingItems = useRef(new Set<string>());
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const removedToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Handle new ingredients from the ingredients screen
   useEffect(() => {
@@ -59,7 +64,7 @@ export default function GroceryTab() {
     const newItems: GroceryItem[] = ingredients.map((ingredient, index) => ({
       id: `new-${Date.now()}-${index}`,
       name: ingredient,
-      category: categorizeIngredient(ingredient), // You can implement this function
+      category: categorizeIngredient(ingredient),
       needed: true,
       inCart: false,
     }));
@@ -111,7 +116,7 @@ export default function GroceryTab() {
     Alert.alert('Item Added', `"${newItem.name}" has been added to your grocery list!`);
   };
 
-  // Simple categorization function - you can make this more sophisticated
+  // Simple categorization function
   const categorizeIngredient = (ingredient: string): string => {
     const lowerIngredient = ingredient.toLowerCase();
     
@@ -146,22 +151,51 @@ export default function GroceryTab() {
     return 'Other';
   };
 
-  // This would be replaced with your actual database fetch
   useEffect(() => {
     // fetchGroceryItemsFromDatabase();
   }, []);
 
-// const fetchGroceryItemsFromDatabase = async () => {
-//   try {
-//     const data = await supabase.getGroceryItems();
-//     setItems(data);
-//   } catch (error) {
-//     console.error('Error fetching grocery items:', error);
-//   }
-// };
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+      if (removedToastTimeoutRef.current) {
+        clearTimeout(removedToastTimeoutRef.current);
+      }
+    };
+  }, []);
 
-  // Animated toast function for adding to cart
-  const showAddedToCartToast = (itemName: string) => {
+  // Optimized toast function for adding to cart
+  const showAddedToCartToast = useCallback((itemName: string) => {
+    // Clear existing timeout
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+
+    // If toast is already showing, just update the item name
+    if (showCartToast) {
+      setLastAddedItem(itemName);
+      toastTimeoutRef.current = setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(toastOpacity, {
+            toValue: 0,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+          Animated.timing(toastTranslateY, {
+            toValue: -50,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          setShowCartToast(false);
+        });
+      }, 2000);
+      return;
+    }
+
     setLastAddedItem(itemName);
     setShowCartToast(true);
     
@@ -184,7 +218,7 @@ export default function GroceryTab() {
     ]).start();
     
     // Auto hide after 2 seconds
-    setTimeout(() => {
+    toastTimeoutRef.current = setTimeout(() => {
       Animated.parallel([
         Animated.timing(toastOpacity, {
           toValue: 0,
@@ -200,10 +234,37 @@ export default function GroceryTab() {
         setShowCartToast(false);
       });
     }, 2000);
-  };
+  }, [showCartToast, toastOpacity, toastTranslateY]);
 
-  // Animated toast function for removing from cart
-  const showRemovedFromCartToast = (itemName: string) => {
+  // Optimized toast function for removing from cart
+  const showRemovedFromCartToast = useCallback((itemName: string) => {
+    // Clear existing timeout
+    if (removedToastTimeoutRef.current) {
+      clearTimeout(removedToastTimeoutRef.current);
+    }
+
+    // If toast is already showing, just update the item name
+    if (showRemovedToast) {
+      setLastRemovedItem(itemName);
+      removedToastTimeoutRef.current = setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(removedToastOpacity, {
+            toValue: 0,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+          Animated.timing(removedToastTranslateY, {
+            toValue: -50,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          setShowRemovedToast(false);
+        });
+      }, 2000);
+      return;
+    }
+
     setLastRemovedItem(itemName);
     setShowRemovedToast(true);
     
@@ -226,7 +287,7 @@ export default function GroceryTab() {
     ]).start();
     
     // Auto hide after 2 seconds
-    setTimeout(() => {
+    removedToastTimeoutRef.current = setTimeout(() => {
       Animated.parallel([
         Animated.timing(removedToastOpacity, {
           toValue: 0,
@@ -242,26 +303,46 @@ export default function GroceryTab() {
         setShowRemovedToast(false);
       });
     }, 2000);
-  };
+  }, [showRemovedToast, removedToastOpacity, removedToastTranslateY]);
 
-  const toggleItemCart = (id: string) => {
-    const item = items.find(item => item.id === id);
-    if (item) {
+  // Optimized toggleItemCart function with debouncing
+  const toggleItemCart = useCallback((id: string) => {
+    // Prevent rapid successive calls
+    if (processingItems.current.has(id)) {
+      return;
+    }
+
+    processingItems.current.add(id);
+    
+    // Use functional update to avoid stale closure issues
+    setItems(prevItems => {
+      const item = prevItems.find(item => item.id === id);
+      if (!item) {
+        processingItems.current.delete(id);
+        return prevItems;
+      }
+
+      // Trigger toast animation based on the new state
       if (!item.inCart) {
-        // Adding to cart
+        // Will be adding to cart
         showAddedToCartToast(item.name);
       } else {
-        // Removing from cart (moving back to needed)
+        // Will be removing from cart
         showRemovedFromCartToast(item.name);
       }
-    }
-    
-    setItems(prevItems =>
-      prevItems.map(item =>
-        item.id === id ? { ...item, inCart: !item.inCart } : item
-      )
-    );
-  };
+
+      const updatedItems = prevItems.map(prevItem =>
+        prevItem.id === id ? { ...prevItem, inCart: !prevItem.inCart } : prevItem
+      );
+
+      // Clean up processing flag after a short delay
+      setTimeout(() => {
+        processingItems.current.delete(id);
+      }, 300);
+
+      return updatedItems;
+    });
+  }, [showAddedToCartToast, showRemovedFromCartToast]);
 
   const removeItem = (id: string) => {
     setItems(prevItems => prevItems.filter(item => item.id !== id));
@@ -294,6 +375,7 @@ export default function GroceryTab() {
         <TouchableOpacity
           style={[styles.checkbox, item.inCart && styles.checkboxChecked]}
           onPress={() => toggleItemCart(item.id)}
+          activeOpacity={0.7}
         >
           {item.inCart && <Check size={16} color="#FFFFFF" />}
         </TouchableOpacity>
@@ -312,6 +394,7 @@ export default function GroceryTab() {
       <TouchableOpacity
         style={styles.removeButton}
         onPress={() => removeItem(item.id)}
+        activeOpacity={0.7}
       >
         <Trash2 size={16} color="#EF4444" />
       </TouchableOpacity>
@@ -341,6 +424,7 @@ export default function GroceryTab() {
         <TouchableOpacity
           style={styles.emptyActionButton}
           onPress={navigateToCamera}
+          activeOpacity={0.7}
         >
           <Camera size={20} color="#059669" />
           <Text style={styles.emptyActionButtonText}>Take Photo</Text>
@@ -350,6 +434,7 @@ export default function GroceryTab() {
         <TouchableOpacity
           style={styles.emptyActionButton}
           onPress={navigateToIngredients}
+          activeOpacity={0.7}
         >
           <List size={20} color="#059669" />
           <Text style={styles.emptyActionButtonText}>View Ingredients</Text>
@@ -378,6 +463,7 @@ export default function GroceryTab() {
               selectedTab === 'needed' && styles.tabButtonActive
             ]}
             onPress={() => setSelectedTab('needed')}
+            activeOpacity={0.7}
           >
             <ShoppingCart size={20} color={selectedTab === 'needed' ? '#FFFFFF' : '#6B7280'} />
             <Text style={[
@@ -394,6 +480,7 @@ export default function GroceryTab() {
               selectedTab === 'cart' && styles.tabButtonActive
             ]}
             onPress={() => setSelectedTab('cart')}
+            activeOpacity={0.7}
           >
             <Check size={20} color={selectedTab === 'cart' ? '#FFFFFF' : '#6B7280'} />
             <Text style={[
@@ -468,6 +555,7 @@ export default function GroceryTab() {
           <TouchableOpacity 
             style={[styles.addButton, styles.addButtonPhoto]}
             onPress={navigateToCamera}
+            activeOpacity={0.7}
           >
             <Camera size={20} color="#FFFFFF" />
             <Text style={styles.addButtonText}>Add Item (From Photo)</Text>
@@ -476,6 +564,7 @@ export default function GroceryTab() {
           <TouchableOpacity 
             style={[styles.addButton, styles.addButtonManual]}
             onPress={() => setShowManualAddModal(true)}
+            activeOpacity={0.7}
           >
             <Plus size={20} color="#FFFFFF" />
             <Text style={styles.addButtonText}>Add Item (Manually Type)</Text>
@@ -497,6 +586,7 @@ export default function GroceryTab() {
               <TouchableOpacity
                 style={styles.modalCloseButton}
                 onPress={() => setShowManualAddModal(false)}
+                activeOpacity={0.7}
               >
                 <X size={24} color="#6B7280" />
               </TouchableOpacity>
@@ -523,6 +613,7 @@ export default function GroceryTab() {
                   setShowManualAddModal(false);
                   setNewItemName('');
                 }}
+                activeOpacity={0.7}
               >
                 <Text style={styles.modalCancelButtonText}>Cancel</Text>
               </TouchableOpacity>
@@ -530,6 +621,7 @@ export default function GroceryTab() {
               <TouchableOpacity
                 style={styles.modalAddButton}
                 onPress={addManualItem}
+                activeOpacity={0.7}
               >
                 <Text style={styles.modalAddButtonText}>Add Item</Text>
               </TouchableOpacity>
@@ -661,7 +753,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
-    paddingBottom: 120, // Extra padding for the two buttons
+    paddingBottom: 120,
   },
   categorySection: {
     marginBottom: 24,
@@ -769,7 +861,6 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginLeft: 16,
   },
-  // Updated Add Button Styles
   addButtonContainer: {
     paddingHorizontal: 24,
     paddingBottom: 24,

@@ -48,6 +48,11 @@ export default function Signup() {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
+        options: {
+          data: {
+            name: name.trim(),
+          }
+        }
       });
 
       console.log('📥 Signup response:', JSON.stringify(data, null, 2));
@@ -65,32 +70,79 @@ export default function Signup() {
 
       console.log('🧠 User ID returned:', data.user.id);
 
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert([
-          {
-            id: data.user.id,
-            email: email.trim(),
-            name: name.trim(),
-          },
-        ]);
-
-      if (profileError) {
-        console.error('❌ Profile insert error:', profileError.message);
-        Alert.alert('Profile Error', 'Failed to create profile. Please try again.');
-        return;
-      }
-
-      console.log('✅ Profile inserted successfully');
-
-      if (!data.session) {
-        console.log('📧 Email confirmation required — no session returned');
-        router.replace('/confirmEmail');
-      } else {
+      // Since email confirmation is disabled, user should be automatically signed in
+      if (data.session) {
         console.log('✅ User signed in immediately with session:', data.session);
-        Alert.alert('Success', 'Account created successfully!', [
-          { text: 'OK', onPress: () => router.replace('/profile') },
-        ]);
+        
+        // Try to create profile with retry logic
+        const insertProfile = async (retries = 3) => {
+          for (let i = 0; i < retries; i++) {
+            try {
+              console.log(`🔄 Profile insert attempt ${i + 1}/${retries}`);
+              
+              // Add a small delay before each attempt
+              if (i > 0) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+
+              const { error: profileError } = await supabase
+                .from('profiles')
+                .insert([
+                  {
+                    id: data.user.id,
+                    email: email.trim(),
+                    name: name.trim(),
+                  },
+                ]);
+
+              if (profileError) {
+                console.error(`❌ Profile insert error (attempt ${i + 1}):`, profileError.message);
+                if (i === retries - 1) {
+                  throw profileError;
+                }
+                continue;
+              }
+
+              console.log('✅ Profile inserted successfully');
+              return true;
+            } catch (error) {
+              console.error(`❌ Profile insert attempt ${i + 1} failed:`, error);
+              if (i === retries - 1) {
+                throw error;
+              }
+            }
+          }
+          return false;
+        };
+
+        try {
+          await insertProfile();
+          // Redirect to the account created success page
+          router.replace('/AccountCreatedSuccessfully');
+        } catch (profileError) {
+          console.error('❌ All profile insert attempts failed:', profileError);
+          
+          // Don't block the user flow - they can complete profile later
+          Alert.alert(
+            'Account Created',
+            'Your account was created successfully, but we couldn\'t complete your profile setup. You can update your profile information later.',
+            [
+              { 
+                text: 'OK', 
+                onPress: () => router.replace('/AccountCreatedSuccessfully')
+              }
+            ]
+          );
+        }
+      } else {
+        console.log('❌ No session returned - this should not happen with email confirmation disabled');
+        Alert.alert(
+          'Account Created',
+          'Your account was created but there was an issue signing you in. Please try logging in.',
+          [
+            { text: 'OK', onPress: () => router.replace('/login') },
+          ]
+        );
       }
     } catch (error) {
       console.error('🔥 Unexpected error during signup:', error);

@@ -12,6 +12,12 @@ import { useIngredientsLogic } from '../components/IngredientsScreenComponents/u
 import type { ParsedRecipe } from '../components/CameraScreenComponents/AIResponseParser';
 import styles from '../styles/Ingredients.styles';
 
+import { saveIngredientsToGrocery } from '../services/groceryService';
+import { supabase } from '../lib/supabase'; // If not already imported
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+
+
 interface IngredientsScreenParams {
   ingredients?: string | string[];
   recipes?: string | string[];
@@ -254,22 +260,49 @@ export default function IngredientsScreen() {
   };
 
   // Navigate to grocery screen with selected ingredients
-  const handleNavigateToGrocery = () => {
-    const selectedItems = Array.from(selectedIngredients);
-    if (selectedItems.length === 0) {
-      // Could show an alert here if no items selected
+const handleNavigateToGrocery = async () => {
+  const selectedItems = Array.from(selectedIngredients);
+  if (selectedItems.length === 0) return;
+
+  const { data: { session } } = await supabase.auth.getSession();
+  const userId = session?.user?.id;
+
+  if (userId) {
+    // 🔒 Save to Supabase
+    const { error } = await saveIngredientsToGrocery(userId, selectedItems);
+    if (error) {
+      console.error('❌ Supabase error:', error.message);
       return;
     }
+  } else {
+    // 🗂️ Fallback to AsyncStorage
+    try {
+      const existing = await AsyncStorage.getItem('groceryItems');
+      const parsed = existing ? JSON.parse(existing) : [];
 
-    // Navigate to grocery screen with selected ingredients
-    // You might need to adjust the route name based on your navigation setup
-    router.push({
-      pathname: '/grocery',
-      params: {
-        newIngredients: JSON.stringify(selectedItems)
-      }
-    });
-  };
+      const updated = [
+        ...parsed,
+        ...selectedItems.map((name: string) => ({
+          id: `${name}-${Date.now()}`, // Simple unique ID
+          name,
+          category: 'Uncategorized',
+          needed: true,
+          inCart: false,
+        })),
+      ];
+
+      await AsyncStorage.setItem('groceryItems', JSON.stringify(updated));
+    } catch (err) {
+      console.error('❌ Failed to save to local storage:', err);
+      return;
+    }
+  }
+
+  // ✅ Navigate after success
+  router.push('/grocery');
+};
+
+
 
   if (!ingredientList || ingredientList.length === 0) {
     return <EmptyState />;

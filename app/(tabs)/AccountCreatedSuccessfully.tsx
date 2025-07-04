@@ -1,30 +1,30 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Mail } from 'lucide-react-native';
+import { CheckCircle } from 'lucide-react-native';
 import { router } from 'expo-router';
 import LottieView from 'lottie-react-native';
 
-export default function ConfirmEmailScreen() {
+export default function AccountCreatedScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.iconContainer}>
         <LottieView
-          source={require('../../assets/animations/email.json')}
+          source={require('../../assets/animations/success.json')}
           autoPlay
           loop={false}
           style={styles.lottie}
         />
       </View>
 
-      <Text style={styles.title}>Check Your Inbox</Text>
+      <Text style={styles.title}>Account Created Successfully!</Text>
       <Text style={styles.message}>
-        We've sent a confirmation link to your email address.
-        {'\n'}Please click the link to complete your signup.
+        Congratulations! Your account has been created successfully.
+        {'\n'}Your recipes and grocery lists are now saved to your account and will be synced across all your devices.
       </Text>
 
-      <TouchableOpacity onPress={() => router.replace('/Login')} style={styles.button}>
-        <Text style={styles.buttonText}>Back to Login</Text>
+      <TouchableOpacity onPress={() => router.replace('/profile')} style={styles.button}>
+        <Text style={styles.buttonText}>Go to Profile</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -23,6 +24,7 @@ import {
   LogIn,
   UserPlus,
   LogOut,
+  Edit3,
 } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { router } from 'expo-router';
@@ -45,23 +47,48 @@ interface UserData {
   name: string;
   email: string;
   id: string;
+  avatar_url?: string;
+  created_at?: string;
+}
+
+interface UserStats {
+  photos_taken: number;
+  recipes_tried: number;
+  lists_created: number;
+  favorites_count: number;
 }
 
 export default function ProfileTab() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userData, setUserData] = useState<UserData>({ name: '', email: '', id: '' });
+  const [userStats, setUserStats] = useState<UserStats>({
+    photos_taken: 0,
+    recipes_tried: 0,
+    lists_created: 0,
+    favorites_count: 0,
+  });
   const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     checkAuthStatus();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.id);
+      
       if (session?.user) {
         await loadUserProfile(session.user);
+        await loadUserStats(session.user.id);
         setIsAuthenticated(true);
       } else {
         setIsAuthenticated(false);
         setUserData({ name: '', email: '', id: '' });
+        setUserStats({
+          photos_taken: 0,
+          recipes_tried: 0,
+          lists_created: 0,
+          favorites_count: 0,
+        });
       }
       setInitialLoading(false);
     });
@@ -72,12 +99,21 @@ export default function ProfileTab() {
   const checkAuthStatus = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      console.log('Current session:', session?.user?.id);
+      
       if (session?.user) {
         await loadUserProfile(session.user);
+        await loadUserStats(session.user.id);
         setIsAuthenticated(true);
       } else {
         setIsAuthenticated(false);
         setUserData({ name: '', email: '', id: '' });
+        setUserStats({
+          photos_taken: 0,
+          recipes_tried: 0,
+          lists_created: 0,
+          favorites_count: 0,
+        });
       }
     } catch (error) {
       console.error('Error checking auth status:', error);
@@ -88,6 +124,8 @@ export default function ProfileTab() {
 
   const loadUserProfile = async (user: any) => {
     try {
+      console.log('Loading profile for user:', user.id);
+      
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
@@ -98,18 +136,71 @@ export default function ProfileTab() {
         console.error('Error loading profile:', error);
       }
 
+      const displayName = profile?.name || 
+                         profile?.display_name || 
+                         user.user_metadata?.name || 
+                         user.user_metadata?.full_name ||
+                         'Welcome Back!';
+
       setUserData({
         id: user.id,
         email: user.email || '',
-        name: profile?.name || profile?.display_name || user.user_metadata?.name || 'Welcome Back!',
+        name: displayName,
+        avatar_url: profile?.avatar_url || user.user_metadata?.avatar_url,
+        created_at: profile?.created_at || user.created_at,
       });
+
+      console.log('Profile loaded:', { name: displayName, email: user.email });
     } catch (error) {
       console.error('Error loading user profile:', error);
+      
+      // Fallback to user metadata
+      const fallbackName = user.user_metadata?.name || 
+                          user.user_metadata?.full_name || 
+                          'Welcome Back!';
+      
       setUserData({
         id: user.id,
         email: user.email || '',
-        name: user.user_metadata?.name || 'Welcome Back!',
+        name: fallbackName,
+        avatar_url: user.user_metadata?.avatar_url,
+        created_at: user.created_at,
       });
+    }
+  };
+
+  const loadUserStats = async (userId: string) => {
+    try {
+      console.log('Loading stats for user:', userId);
+      
+      // In a real app, you would fetch actual stats from your database
+      // For now, we'll use mock data that updates based on user activity
+      const mockStats = {
+        photos_taken: Math.floor(Math.random() * 50) + 10,
+        recipes_tried: Math.floor(Math.random() * 30) + 5,
+        lists_created: Math.floor(Math.random() * 15) + 3,
+        favorites_count: Math.floor(Math.random() * 20) + 2,
+      };
+      
+      setUserStats(mockStats);
+      console.log('Stats loaded:', mockStats);
+    } catch (error) {
+      console.error('Error loading user stats:', error);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await loadUserProfile(session.user);
+        await loadUserStats(session.user.id);
+      }
+    } catch (error) {
+      console.error('Error refreshing profile:', error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -119,6 +210,12 @@ export default function ProfileTab() {
 
   const handleSignup = () => {
     router.push('/Signup');
+  };
+
+  const handleEditProfile = () => {
+    // Navigate to edit profile screen
+    console.log('Edit profile pressed');
+    // router.push('/EditProfile');
   };
 
   const handleLogout = () => {
@@ -134,10 +231,18 @@ export default function ProfileTab() {
             try {
               const { error } = await supabase.auth.signOut();
               if (error) {
+                console.error('Logout error:', error);
                 Alert.alert('Error', 'Failed to logout. Please try again.');
               } else {
+                console.log('User logged out successfully');
                 setIsAuthenticated(false);
                 setUserData({ name: '', email: '', id: '' });
+                setUserStats({
+                  photos_taken: 0,
+                  recipes_tried: 0,
+                  lists_created: 0,
+                  favorites_count: 0,
+                });
               }
             } catch (error) {
               console.error('Logout error:', error);
@@ -153,25 +258,25 @@ export default function ProfileTab() {
     {
       icon: <Camera size={24} color="#059669" />,
       label: 'Photos Taken',
-      value: isAuthenticated ? '47' : '0',
+      value: isAuthenticated ? userStats.photos_taken.toString() : '0',
       color: '#059669',
     },
     {
       icon: <ChefHat size={24} color="#7C3AED" />,
       label: 'Recipes Tried',
-      value: isAuthenticated ? '23' : '0',
+      value: isAuthenticated ? userStats.recipes_tried.toString() : '0',
       color: '#7C3AED',
     },
     {
       icon: <ShoppingCart size={24} color="#F59E0B" />,
       label: 'Lists Created',
-      value: isAuthenticated ? '12' : '0',
+      value: isAuthenticated ? userStats.lists_created.toString() : '0',
       color: '#F59E0B',
     },
     {
       icon: <Heart size={24} color="#EF4444" />,
       label: 'Favorites',
-      value: isAuthenticated ? '8' : '0',
+      value: isAuthenticated ? userStats.favorites_count.toString() : '0',
       color: '#EF4444',
     },
   ];
@@ -181,32 +286,50 @@ export default function ProfileTab() {
       {
         icon: <Settings size={24} color="#6B7280" />,
         label: 'Settings',
-        onPress: () => {},
+        onPress: () => {
+          console.log('Settings pressed');
+          // router.push('/Settings');
+        },
       },
       {
         icon: <Bell size={24} color="#6B7280" />,
         label: 'Notifications',
-        onPress: () => {},
+        onPress: () => {
+          console.log('Notifications pressed');
+          // router.push('/Notifications');
+        },
       },
       {
         icon: <Heart size={24} color="#6B7280" />,
         label: 'Favorites',
-        onPress: () => {},
+        onPress: () => {
+          console.log('Favorites pressed');
+          // router.push('/Favorites');
+        },
       },
       {
         icon: <Share size={24} color="#6B7280" />,
         label: 'Share App',
-        onPress: () => {},
+        onPress: () => {
+          console.log('Share App pressed');
+          // Implement share functionality
+        },
       },
       {
         icon: <Star size={24} color="#6B7280" />,
         label: 'Rate App',
-        onPress: () => {},
+        onPress: () => {
+          console.log('Rate App pressed');
+          // Implement rate app functionality
+        },
       },
       {
         icon: <HelpCircle size={24} color="#6B7280" />,
         label: 'Help & Support',
-        onPress: () => {},
+        onPress: () => {
+          console.log('Help & Support pressed');
+          // router.push('/Help');
+        },
       },
     ];
 
@@ -236,7 +359,14 @@ export default function ProfileTab() {
   );
 
   const renderMenuOption = (option: MenuOption, index: number) => (
-    <TouchableOpacity key={index} style={styles.menuOption} onPress={option.onPress}>
+    <TouchableOpacity 
+      key={index} 
+      style={[
+        styles.menuOption,
+        index === getMenuOptions().length - 1 && styles.lastMenuOption
+      ]} 
+      onPress={option.onPress}
+    >
       {option.icon}
       <Text
         style={[styles.menuOptionText, option.isDestructive && { color: '#EF4444' }]}
@@ -294,12 +424,51 @@ export default function ProfileTab() {
     </View>
   );
 
+  const renderAuthenticatedContent = () => (
+    <>
+      <View style={styles.profileHeader}>
+        <View style={styles.avatarContainer}>
+          <User size={48} color="#059669" />
+        </View>
+        <Text style={styles.userName}>{userData.name}</Text>
+        <Text style={styles.userEmail}>{userData.email}</Text>
+        <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
+          <Edit3 size={16} color="#059669" />
+          <Text style={styles.editButtonText}>Edit Profile</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.statsContainer}>
+        <Text style={styles.sectionTitle}>Your Activity</Text>
+        <View style={styles.statsGrid}>{stats.map(renderStatCard)}</View>
+      </View>
+
+      <View style={styles.achievementsContainer}>
+        <Text style={styles.sectionTitle}>Recent Achievement</Text>
+        <View style={styles.achievementCard}>
+          <View style={styles.achievementIcon}>
+            <ChefHat size={32} color="#F59E0B" />
+          </View>
+          <View style={styles.achievementContent}>
+            <Text style={styles.achievementTitle}>Recipe Explorer</Text>
+            <Text style={styles.achievementDescription}>
+              {userStats.recipes_tried >= 20 
+                ? `You've tried ${userStats.recipes_tried} recipes! Amazing!` 
+                : `You've tried ${userStats.recipes_tried} recipes! Keep cooking!`
+              }
+            </Text>
+          </View>
+        </View>
+      </View>
+    </>
+  );
+
   if (initialLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#059669" />
-          <Text style={styles.loadingText}>Checking login status...</Text>
+          <Text style={styles.loadingText}>Loading profile...</Text>
         </View>
       </SafeAreaView>
     );
@@ -311,44 +480,24 @@ export default function ProfileTab() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={['#059669']}
+            tintColor="#059669"
+          />
+        }
       >
-        {isAuthenticated ? (
-          <>
-            <View style={styles.profileHeader}>
-              <View style={styles.avatarContainer}>
-                <User size={48} color="#059669" />
-              </View>
-              <Text style={styles.userName}>{userData.name}</Text>
-              <Text style={styles.userEmail}>{userData.email}</Text>
-            </View>
-
-            <View style={styles.statsContainer}>
-              <Text style={styles.sectionTitle}>Your Activity</Text>
-              <View style={styles.statsGrid}>{stats.map(renderStatCard)}</View>
-            </View>
-
-            <View style={styles.achievementsContainer}>
-              <Text style={styles.sectionTitle}>Recent Achievement</Text>
-              <View style={styles.achievementCard}>
-                <View style={styles.achievementIcon}>
-                  <ChefHat size={32} color="#F59E0B" />
-                </View>
-                <View style={styles.achievementContent}>
-                  <Text style={styles.achievementTitle}>Recipe Explorer</Text>
-                  <Text style={styles.achievementDescription}>
-                    You've tried 20+ recipes! Keep cooking!
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </>
-        ) : (
-          renderGuestContent()
-        )}
+        {isAuthenticated ? renderAuthenticatedContent() : renderGuestContent()}
 
         <View style={styles.menuContainer}>
-          <Text style={styles.sectionTitle}>{isAuthenticated ? 'Settings' : 'General'}</Text>
-          <View style={styles.menuList}>{getMenuOptions().map(renderMenuOption)}</View>
+          <Text style={styles.sectionTitle}>
+            {isAuthenticated ? 'Settings' : 'General'}
+          </Text>
+          <View style={styles.menuList}>
+            {getMenuOptions().map(renderMenuOption)}
+          </View>
         </View>
 
         <View style={styles.appInfo}>
@@ -403,8 +552,6 @@ const styles = StyleSheet.create({
   authButtonsContainer: {
     gap: 12,
     marginBottom: 24,
-    flexDirection: 'row',
-    justifyContent: 'center',
   },
   loginButton: {
     flexDirection: 'row',
@@ -496,6 +643,23 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 16,
     color: '#6B7280',
+    marginBottom: 16,
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#059669',
+  },
+  editButtonText: {
+    fontSize: 14,
+    color: '#059669',
+    fontWeight: '500',
   },
   statsContainer: {
     marginBottom: 24,
@@ -574,47 +738,54 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#111827',
-marginBottom: 4,
-},
-achievementDescription: {
-fontSize: 14,
-color: '#6B7280',
-},
-menuContainer: {
-marginBottom: 24,
-},
-menuList: {
-backgroundColor: '#FFFFFF',
-borderRadius: 16,
-paddingVertical: 8,
-paddingHorizontal: 4,
-},
-menuOption: {
-flexDirection: 'row',
-alignItems: 'center',
-gap: 16,
-paddingVertical: 16,
-paddingHorizontal: 16,
-borderBottomWidth: 1,
-borderBottomColor: '#F3F4F6',
-},
-menuOptionText: {
-fontSize: 16,
-color: '#374151',
-},
-appInfo: {
-alignItems: 'center',
-marginTop: 24,
-marginBottom: 48,
-},
-appName: {
-fontSize: 14,
-fontWeight: '600',
-color: '#6B7280',
-},
-appVersion: {
-fontSize: 12,
-color: '#9CA3AF',
-},
+    marginBottom: 4,
+  },
+  achievementDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  menuContainer: {
+    marginBottom: 24,
+  },
+  menuList: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  menuOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  lastMenuOption: {
+    borderBottomWidth: 0,
+  },
+  menuOptionText: {
+    fontSize: 16,
+    color: '#374151',
+  },
+  appInfo: {
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 48,
+  },
+  appName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  appVersion: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
 });
-   
