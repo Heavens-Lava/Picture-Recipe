@@ -13,6 +13,7 @@ import type { ParsedRecipe } from '../components/CameraScreenComponents/AIRespon
 import styles from '../styles/Ingredients.styles';
 
 import { saveIngredientsToGrocery } from '../services/groceryService';
+import { moveIngredientsToShoppingCart } from '../services/groceryService';
 import { supabase } from '../lib/supabase'; // If not already imported
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -259,6 +260,68 @@ export default function IngredientsScreen() {
     }
   };
 
+// ... (same imports)
+
+
+
+const handleRemoveFromGrocery = async () => {
+  const selectedItems = Array.from(selectedIngredients);
+  if (selectedItems.length === 0) return;
+
+  const { data: { session } } = await supabase.auth.getSession();
+  const userId = session?.user?.id;
+  let success = false;
+
+  if (userId) {
+    // Move items from grocery_items to shopping_cart_items
+    const result = await moveIngredientsToShoppingCart(userId, selectedItems);
+
+    if (result.success) {
+      success = true;
+    } else {
+      console.error('❌ Failed to move items:', result.error || result.message);
+      return;
+    }
+  } else {
+    // Fallback for unauthenticated users: localStorage logic
+    try {
+      const existingGrocery = await AsyncStorage.getItem('groceryItems');
+      const groceryItems = existingGrocery ? JSON.parse(existingGrocery) : [];
+
+      // Filter out selected items from grocery list
+      const updatedGrocery = groceryItems.filter((item: any) => !selectedItems.includes(item.name));
+      await AsyncStorage.setItem('groceryItems', JSON.stringify(updatedGrocery));
+
+      // Get current shopping cart items from local storage
+      const existingCart = await AsyncStorage.getItem('shoppingCartItems');
+      const cartItems = existingCart ? JSON.parse(existingCart) : [];
+
+      // Add selected items to cart
+      const newCartItems = [
+        ...cartItems,
+        ...selectedItems.map(name => ({
+          id: `${name}-${Date.now()}`,
+          name,
+          category: 'Uncategorized',
+        })),
+      ];
+
+      await AsyncStorage.setItem('shoppingCartItems', JSON.stringify(newCartItems));
+      success = true;
+    } catch (err) {
+      console.error('❌ Failed to update local storage:', err);
+      return;
+    }
+  }
+
+  if (success) {
+    setIngredientList(prev => prev.filter(ing => !selectedIngredients.has(ing)));
+    setSelectedIngredients(new Set());
+    router.push('/grocery');
+  }
+};
+
+
   // Navigate to grocery screen with selected ingredients
 const handleNavigateToGrocery = async () => {
   const selectedItems = Array.from(selectedIngredients);
@@ -266,16 +329,17 @@ const handleNavigateToGrocery = async () => {
 
   const { data: { session } } = await supabase.auth.getSession();
   const userId = session?.user?.id;
+  let success = false;
 
   if (userId) {
-    // 🔒 Save to Supabase
-    const { error } = await saveIngredientsToGrocery(userId, selectedItems);
-    if (error) {
-      console.error('❌ Supabase error:', error.message);
+    const result = await saveIngredientsToGrocery(userId, selectedItems);
+    if (result.error) {
+      console.error('❌ Supabase error:', result.error);
       return;
+    } else {
+      success = true;
     }
   } else {
-    // 🗂️ Fallback to AsyncStorage
     try {
       const existing = await AsyncStorage.getItem('groceryItems');
       const parsed = existing ? JSON.parse(existing) : [];
@@ -283,7 +347,7 @@ const handleNavigateToGrocery = async () => {
       const updated = [
         ...parsed,
         ...selectedItems.map((name: string) => ({
-          id: `${name}-${Date.now()}`, // Simple unique ID
+          id: `${name}-${Date.now()}`,
           name,
           category: 'Uncategorized',
           needed: true,
@@ -292,15 +356,22 @@ const handleNavigateToGrocery = async () => {
       ];
 
       await AsyncStorage.setItem('groceryItems', JSON.stringify(updated));
+      success = true;
     } catch (err) {
       console.error('❌ Failed to save to local storage:', err);
       return;
     }
   }
 
-  // ✅ Navigate after success
-  router.push('/grocery');
+  // ✅ Remove ingredients from UI
+  if (success) {
+    setIngredientList(prev => prev.filter(ing => !selectedIngredients.has(ing)));
+    setSelectedIngredients(new Set()); // Clear selection
+      router.push('/grocery');  // Navigate after removing ingredients
+  }
+
 };
+
 
 
 
@@ -322,20 +393,31 @@ const handleNavigateToGrocery = async () => {
           onSelectAll={handleSelectAll}
           allSelected={allSelected}
         />
+{selectedCount > 0 && (
+  <View style={{ marginBottom: 32 }}>
+    <TouchableOpacity
+      style={groceryButtonStyles.button}
+      onPress={handleNavigateToGrocery}
+    >
+      <ShoppingCart size={20} color="#FFFFFF" />
+      <Text style={groceryButtonStyles.buttonText}>
+        Add {selectedCount} to Grocery List
+      </Text>
+    </TouchableOpacity>
 
-        {selectedCount > 0 && (
-          <View style={groceryButtonStyles.container}>
-            <TouchableOpacity
-              style={groceryButtonStyles.button}
-              onPress={handleNavigateToGrocery}
-            >
-              <ShoppingCart size={20} color="#FFFFFF" />
-              <Text style={groceryButtonStyles.buttonText}>
-                Add {selectedCount} to Grocery ({selectedCount})
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+    <TouchableOpacity
+      style={[groceryButtonStyles.button, { backgroundColor: '#DC2626', marginTop: 12 }]}
+      onPress={handleRemoveFromGrocery}
+    >
+      <CheckSquare size={20} color="#FFFFFF" />
+      <Text style={groceryButtonStyles.buttonText}>
+        Remove {selectedCount} from Grocery (Adds to Cart)
+      </Text>
+    </TouchableOpacity>
+  </View>
+)}
+
+
 
         <RecipeSuggestions
           recipes={recipeList}

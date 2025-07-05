@@ -16,6 +16,9 @@ import { useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 
+  import { useFocusEffect } from '@react-navigation/native';
+
+
 interface GroceryItem {
   id: string;
   name: string;
@@ -47,17 +50,60 @@ export default function GroceryTab() {
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const removedToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+
+
+
+useFocusEffect(
+  useCallback(() => {
+    fetchGroceryItemsFromDatabase();
+  }, [])
+);
+  
   // Handle new ingredients from the ingredients screen
-  useEffect(() => {
-    if (newIngredients) {
-      try {
-        const parsedIngredients = JSON.parse(newIngredients as string);
-        addNewIngredientsToGroceryList(parsedIngredients);
-      } catch (error) {
-        console.error('Error parsing new ingredients:', error);
-      }
+useEffect(() => {
+  if (newIngredients) {
+    try {
+      const parsedIngredients = JSON.parse(newIngredients as string);
+      addNewIngredientsToGroceryList(parsedIngredients);
+    } catch (error) {
+      console.error('Error parsing new ingredients:', error);
     }
-  }, [newIngredients]);
+  }
+}, [newIngredients]);
+
+
+
+const fetchGroceryItemsFromDatabase = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    console.log("User not logged in");
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from('grocery')
+    .select('*')
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error('❌ Error fetching grocery items:', error.message);
+    return;
+  }
+
+  if (data) {
+    const formattedItems = data.map((item) => ({
+      id: item.id,
+      name: item.ingredient_name,
+      category: categorizeIngredient(item.ingredient_name),
+      needed: true,
+      inCart: false,
+    }));
+
+    setItems(formattedItems);
+  }
+};
+
 
   // Function to add new ingredients to grocery list
   const addNewIngredientsToGroceryList = (ingredients: string[]) => {
@@ -89,32 +135,54 @@ export default function GroceryTab() {
   };
 
   // Function to add a single item manually
-  const addManualItem = () => {
-    if (newItemName.trim() === '') {
-      Alert.alert('Error', 'Please enter an item name');
-      return;
-    }
+const addManualItem = async () => {
+  const trimmedName = newItemName.trim();
+  if (trimmedName === '') {
+    Alert.alert('Error', 'Please enter an item name');
+    return;
+  }
 
-    const existingNames = new Set(items.map(item => item.name.toLowerCase()));
-    if (existingNames.has(newItemName.trim().toLowerCase())) {
-      Alert.alert('Item Exists', 'This item is already in your grocery list');
-      return;
-    }
+  const existingNames = new Set(items.map(item => item.name.toLowerCase()));
+  if (existingNames.has(trimmedName.toLowerCase())) {
+    Alert.alert('Item Exists', 'This item is already in your grocery list');
+    return;
+  }
 
-    const newItem: GroceryItem = {
-      id: `manual-${Date.now()}`,
-      name: newItemName.trim(),
-      category: categorizeIngredient(newItemName.trim()),
-      needed: true,
-      inCart: false,
-    };
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-    setItems(prevItems => [...prevItems, newItem]);
-    setNewItemName('');
-    setShowManualAddModal(false);
-    
-    Alert.alert('Item Added', `"${newItem.name}" has been added to your grocery list!`);
+  if (userError || !user) {
+    Alert.alert('Error', 'Unable to fetch user information.');
+    console.error('User error:', userError?.message);
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from('grocery')
+    .insert([{ ingredient_name: trimmedName, user_id: user.id }])
+    .select()
+    .single();
+
+  if (error || !data) {
+    Alert.alert('Error', 'Failed to add item to the database.');
+    console.error('Insert error:', error?.message);
+    return;
+  }
+
+  const newItem: GroceryItem = {
+    id: data.id,
+    name: data.ingredient_name,
+    category: categorizeIngredient(data.ingredient_name),
+    needed: true,
+    inCart: false,
   };
+
+  setItems(prevItems => [...prevItems, newItem]);
+  setNewItemName('');
+  setShowManualAddModal(false);
+
+  Alert.alert('Item Added', `"${newItem.name}" has been added to your grocery list!`);
+};
+
 
   // Simple categorization function
   const categorizeIngredient = (ingredient: string): string => {
@@ -344,9 +412,31 @@ export default function GroceryTab() {
     });
   }, [showAddedToCartToast, showRemovedFromCartToast]);
 
-  const removeItem = (id: string) => {
-    setItems(prevItems => prevItems.filter(item => item.id !== id));
-  };
+const removeItem = async (id: string) => {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    console.log("User not logged in");
+    return;
+  }
+
+  // Remove from database
+  const { error } = await supabase
+    .from('grocery')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id); // Optional: extra safety
+
+  if (error) {
+    console.error('❌ Failed to delete item:', error.message);
+    Alert.alert('Error', 'Failed to remove item from the database.');
+    return;
+  }
+
+  // Remove from local state
+  setItems(prevItems => prevItems.filter(item => item.id !== id));
+};
+
 
   const navigateToCamera = () => {
     navigation.navigate('CameraScreen' as never);
@@ -412,37 +502,48 @@ export default function GroceryTab() {
     ));
   };
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyState}>
-      <ShoppingCart size={64} color="#D1D5DB" />
-      <Text style={styles.emptyStateTitle}>No grocery items yet</Text>
-      <Text style={styles.emptyStateText}>
-        Get started by adding ingredients from your fridge or taking a photo
-      </Text>
-      
-      <View style={styles.emptyButtonContainer}>
-        <TouchableOpacity
-          style={styles.emptyActionButton}
-          onPress={navigateToCamera}
-          activeOpacity={0.7}
-        >
-          <Camera size={20} color="#059669" />
-          <Text style={styles.emptyActionButtonText}>Take Photo</Text>
-          <Text style={styles.emptyActionButtonSubtext}>Scan your fridge</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.emptyActionButton}
-          onPress={navigateToIngredients}
-          activeOpacity={0.7}
-        >
-          <List size={20} color="#059669" />
-          <Text style={styles.emptyActionButtonText}>View Ingredients</Text>
-          <Text style={styles.emptyActionButtonSubtext}>Browse your pantry</Text>
-        </TouchableOpacity>
-      </View>
+const renderEmptyState = () => (
+  <View style={styles.emptyState}>
+    <ShoppingCart size={64} color="#D1D5DB" />
+    <Text style={styles.emptyStateTitle}>No grocery items yet</Text>
+    <Text style={styles.emptyStateText}>
+      Get started by adding ingredients from your fridge or typing in a grocery item
+    </Text>
+
+    <View style={styles.emptyButtonContainer}>
+      <TouchableOpacity
+        style={styles.emptyActionButton}
+        onPress={navigateToCamera}
+        activeOpacity={0.7}
+      >
+        <Camera size={20} color="#059669" />
+        <Text style={styles.emptyActionButtonText}>Take Photo</Text>
+        <Text style={styles.emptyActionButtonSubtext}>Scan your fridge</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.emptyActionButton}
+        onPress={navigateToIngredients}
+        activeOpacity={0.7}
+      >
+        <List size={20} color="#059669" />
+        <Text style={styles.emptyActionButtonText}>View Ingredients</Text>
+        <Text style={styles.emptyActionButtonSubtext}>Browse your pantry</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.emptyActionButton}
+        onPress={() => setShowManualAddModal(true)}
+        activeOpacity={0.7}
+      >
+        <Plus size={20} color="#059669" />
+        <Text style={styles.emptyActionButtonText}>Type Item Manually</Text>
+        <Text style={styles.emptyActionButtonSubtext}>Add any grocery by name</Text>
+      </TouchableOpacity>
     </View>
-  );
+  </View>
+);
+
 
   const hasAnyItems = items.length > 0;
 
