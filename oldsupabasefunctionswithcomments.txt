@@ -1,0 +1,185 @@
+/**
+ * Saves a recipe to the Supabase database with complete ingredient handling
+ * 
+ * This function handles:
+ * 1. Checking for duplicate recipes
+ * 2. Saving recipe data to the main recipes table (including ingredients column)
+ * 3. Managing separate ingredients and recipe_ingredients tables for relational data
+ * 
+ * @param recipe - Recipe object containing all the recipe data
+ * @returns Promise<object|null> - Returns the saved recipe data or null if failed
+ */
+
+import { supabase } from './supabase';
+import { Buffer } from 'buffer'; // Import Buffer for React Native environments that don't have it globally
+
+
+export const saveRecipeToSupabase = async (recipe: {
+  title: string;                    // Display title for the recipe
+  recipe_name: string;              // Unique identifier/name for the recipe
+  ingredients?: string[] | null;    // Array of ingredient names
+  instructions?: string;            // Cooking instructions text
+  cookTime?: string;                // Estimated cooking time
+  servings?: number;                // Number of servings the recipe makes
+  difficulty?: string;              // Difficulty level (Easy, Medium, Hard)
+  rating?: number;                  // Recipe rating (1-5 stars)
+  availableIngredients?: number;    // Count of available ingredients user has
+  totalIngredients?: number;        // Total number of ingredients needed
+}) => {
+  try {
+    // STEP 1: Check if recipe already exists to prevent duplicates
+    // Use maybeSingle() instead of single() to handle cases where no recipe is found
+    const { data: existing, error: checkError } = await supabase
+      .from('recipes')
+      .select('id')                           // Only select ID to minimize data transfer
+      .eq('recipe_name', recipe.recipe_name)  // Match by recipe name (unique identifier)
+      .maybeSingle();                         // Returns null if no match, doesn't throw error
+
+    // Handle database errors during the existence check
+    if (checkError) {
+      console.error('Error checking existing recipe:', checkError);
+      return null;
+    }
+
+    // STEP 2: Exit early if recipe already exists (prevent duplicates)
+    if (existing) {
+      console.log('Recipe already exists:', recipe.recipe_name);
+      return existing; // Return the existing recipe data
+    }
+
+    console.log('No existing recipe found, creating a new one:', recipe.recipe_name);
+
+    // STEP 3: Prepare ingredients data for storage
+    // 🔧 KEY FIX: Keep ingredients as array since the database column is array type (text[])
+    // If no ingredients provided, use empty array instead of empty string
+    const ingredientsArray = recipe.ingredients || [];
+
+
+    console.log("availableIngredients in the database: ", recipe.availableIngredients ); 
+    // STEP 4: Insert the new recipe into the database
+    // This saves all the main recipe data including the ingredients as an array
+    const { data: recipeData, error: insertRecipeError } = await supabase
+      .from('recipes')
+      .insert({
+        title: recipe.title,                                    // Recipe display title
+        recipe_name: recipe.recipe_name,                        // Unique recipe identifier
+        ingredients: ingredientsArray,                          // 🔧 KEY FIX: Save ingredients as array
+        instructions: recipe.instructions,                      // Cooking instructions
+        cookTime: recipe.cookTime,                             // Estimated cooking time
+        servings: recipe.servings,                             // Number of servings
+        difficulty: recipe.difficulty,                         // Difficulty level
+        rating: recipe.rating,                                 // Recipe rating
+        availableIngredients: recipe.availableIngredients,     // Count of ingredients user has
+        totalIngredients: recipe.totalIngredients,             // Total ingredients needed
+      })
+      .select('*')  // Return all columns of the inserted record
+      .single();    // Expect exactly one record to be inserted
+
+    // Handle database errors during recipe insertion
+    if (insertRecipeError) {
+      console.error('Error saving recipe:', insertRecipeError);
+      return null;
+    }
+
+    // Log successful recipe save with debug information
+    console.log('Recipe saved with ingredients:', recipe.recipe_name);
+    console.log('Ingredients saved as array:', ingredientsArray); // Debug: show what was actually saved
+
+    // STEP 5: Save ingredients to separate relational tables (optional feature)
+    // This creates normalized data in separate ingredients and recipe_ingredients tables
+    // This is useful for advanced features like ingredient searching, filtering, etc.
+    if (recipe.ingredients && recipe.ingredients.length > 0) {
+      await saveIngredientsForRecipe(recipeData.id, recipe.ingredients);
+    }
+
+    // Return the complete saved recipe data
+    return recipeData;
+
+  } catch (err) {
+    // Handle any unexpected errors that weren't caught by specific error checks
+    console.error('Unexpected error in saveRecipeToSupabase:', err);
+    return null;
+  }
+};
+
+/**
+ * Handles saving individual ingredients to separate normalized tables
+ * 
+ * This function creates a many-to-many relationship between recipes and ingredients:
+ * - ingredients table: stores unique ingredient names
+ * - recipe_ingredients table: links recipes to their ingredients
+ * 
+ * This approach enables advanced features like:
+ * - Finding all recipes that use a specific ingredient
+ * - Ingredient-based search and filtering
+ * - Ingredient analytics and usage tracking
+ * 
+ * @param recipeId - The ID of the recipe to link ingredients to
+ * @param ingredients - Array of ingredient names to process
+ */
+const saveIngredientsForRecipe = async (recipeId: string, ingredients: string[]) => {
+  // Process each ingredient individually to handle duplicates and create relationships
+  for (const ingredientName of ingredients) {
+    try {
+      // STEP 1: Check if this ingredient already exists in the ingredients table
+      // This prevents duplicate ingredient entries and maintains data integrity
+      const { data: existingIngredient, error: checkIngredientError } = await supabase
+        .from('ingredients')
+        .select('ingredient_id')              // Only need the ID for linking
+        .eq('name', ingredientName.trim())    // Match by name (trim whitespace)
+        .maybeSingle();                       // Returns null if not found, no error
+
+      // Handle errors when checking for existing ingredients
+      if (checkIngredientError) {
+        console.error('Error checking ingredient:', checkIngredientError);
+        continue; // Skip this ingredient and move to the next one
+      }
+
+      let ingredientId;
+
+      // STEP 2: Create new ingredient if it doesn't exist
+      if (!existingIngredient) {
+        // Insert new ingredient into the ingredients table
+        const { data: newIngredient, error: insertIngredientError } = await supabase
+          .from('ingredients')
+          .insert({ name: ingredientName.trim() })  // Store cleaned ingredient name
+          .select('ingredient_id')                  // Return the new ingredient's ID
+          .single();                                // Expect exactly one record
+
+        // Handle errors during ingredient creation
+        if (insertIngredientError) {
+          console.error('Error inserting ingredient:', insertIngredientError);
+          continue; // Skip this ingredient and move to the next one
+        }
+
+        ingredientId = newIngredient.ingredient_id;
+        console.log('Created new ingredient:', ingredientName);
+      } else {
+        // STEP 3: Use existing ingredient ID
+        ingredientId = existingIngredient.ingredient_id;
+        console.log('Using existing ingredient:', ingredientName);
+      }
+
+      // STEP 4: Create the relationship between recipe and ingredient
+      // This links the recipe to the ingredient in the junction table
+      const { error: linkError } = await supabase
+        .from('recipe_ingredients')
+        .insert({
+          recipe_id: recipeId,        // The recipe being saved
+          ingredient_id: ingredientId, // The ingredient (new or existing)
+        });
+
+      // Handle errors during relationship creation
+      // if (linkError) {
+      //   console.error('Error linking ingredient to recipe:', linkError);
+      // } else {
+      //   console.log('Linked ingredient to recipe:', ingredientName);
+      // }
+
+    } catch (err) {
+      // Handle any unexpected errors for individual ingredients
+      console.error('Error processing ingredient:', ingredientName, err);
+      // Continue processing other ingredients even if one fails
+    }
+  }
+};
