@@ -1,10 +1,9 @@
 import { supabase } from './supabase';
 import openai from './openai';
-import { generateRecipeImage } from './generateImage'; // Import image generation function
+import { generateRecipeImage } from './generateImage';
+import { parseInstructions, ParsedInstructions } from '../components/InstructionsScreenComponents/InstructionParser';
+import { uploadImageToSupabase } from './uploadImageToSupabase';
 
-/**
- * Saves a recipe to the Supabase database with complete ingredient handling
- */
 export const saveRecipeToSupabase = async (recipe: {
   title: string;
   recipe_name: string;
@@ -16,10 +15,9 @@ export const saveRecipeToSupabase = async (recipe: {
   rating?: number;
   availableIngredients?: number;
   totalIngredients?: number;
-  image_url?: string | null; // Removed to store image in 'images' table
+  image_url?: string | null;
 }) => {
   try {
-    // 1. Check for existing recipe by name
     const { data: existing, error: checkError } = await supabase
       .from('recipes')
       .select('id')
@@ -27,42 +25,32 @@ export const saveRecipeToSupabase = async (recipe: {
       .maybeSingle();
 
     if (checkError) {
-      console.error('Error checking existing recipe:', checkError);
+      console.error('❌ Error checking existing recipe:', checkError);
       return null;
     }
 
     if (existing) {
-      console.log('Recipe already exists:', recipe.recipe_name);
+      console.log('⚠️ Recipe already exists:', recipe.recipe_name);
       return existing;
     }
 
-    console.log('No existing recipe found, creating a new one:', recipe.recipe_name);
-
+    console.log('🆕 No existing recipe found, creating:', recipe.recipe_name);
     const ingredientsArray = recipe.ingredients || [];
 
-    // 2. Generate instructions if missing or placeholder
+    let parsed: ParsedInstructions = { ingredients: [], tools: [], steps: [] };
+
+    // 🧠 1. Generate and parse instructions if missing
     if (!recipe.instructions || recipe.instructions.includes('Instructions will be generated')) {
-      const prompt = `Generate a complete recipe using these exact ingredients: ${ingredientsArray.join(', ')}.
+      const prompt = `You're a professional chef. Create a full cooking guide using ONLY the ingredients listed.
 
-Requirements:
-- Use ONLY the provided ingredients - do not add or suggest any others
-- Start directly with the ingredients list showing quantities
-- Include a list of appropriate cooking tools needed
-- Follow with numbered cooking steps
-- Do not include a recipe title, introduction, or conversational phrases
-- Focus on practical cooking techniques and timing
-- Include specific cooking times and temperatures where relevant
-- End when the dish is ready to serve
+Ingredients: ${ingredientsArray.join(', ')}
 
-Format:
-**Ingredients:**
-[List with quantities]
+Instructions must follow this structure:
+1. **Ingredients:** (with quantities, 1 per line)
+2. **Tools Needed:** (equipment, 1 per line)
+3. **Instructions:** (numbered, detailed, no fluff)
 
-**Tools Needed:**
-[List of cooking tools/equipment]
-
-**Instructions:**
-[Numbered list of clear, actionable steps]`;
+Avoid introductions or extra commentary. Only provide the formatted recipe.`;
 
       try {
         const completion = await openai.chat.completions.create({
@@ -70,25 +58,41 @@ Format:
           messages: [{ role: 'user', content: prompt }],
         });
 
-        const aiInstructions = completion.choices[0].message.content?.trim();
-        recipe.instructions =
-          aiInstructions || 'Instructions are not available at the moment. Please try again later.';
+        const aiInstructionsText = completion.choices[0].message.content?.trim();
+        console.log('🧾 Full AI Instructions Text:\n', aiInstructionsText);
+
+        if (!aiInstructionsText) {
+          recipe.instructions = 'Instructions not available.';
+        } else {
+          parsed = parseInstructions(aiInstructionsText);
+          console.log('✅ Parsed Instructions (steps):\n', parsed.steps.join('\n'));
+
+          recipe.instructions = parsed.steps.join('\n');
+          recipe.ingredients = parsed.ingredients;
+        }
       } catch (err) {
-        console.error('Error generating instructions with OpenAI:', err);
-        recipe.instructions = 'Instructions are not available at the moment. Please try again later.';
+        console.error('❌ OpenAI error while generating instructions:', err);
+        recipe.instructions = 'Instructions not available.';
       }
     }
 
-    // 3. Generate recipe image
-    const imageUrl = await generateRecipeImage(recipe.recipe_name); // Generate image using DALL·E
+    // 📸 2. Generate image and download blob
+    const generatedImage = await generateRecipeImage(recipe.recipe_name);
 
-    // 4. Insert new recipe into Supabase
+    // 💾 Upload image to Supabase Storage for permanent URL
+    const imageUrl = generatedImage
+      ? await uploadImageToSupabase(generatedImage.blob, recipe.recipe_name)
+      : null;
+
+    // 💾 3. Insert into recipes
     const { data: recipeData, error: insertRecipeError } = await supabase
       .from('recipes')
       .insert({
         title: recipe.title,
         recipe_name: recipe.recipe_name,
-        ingredients: ingredientsArray,
+        ingredients: recipe.ingredients,
+        instruction_ingredients: parsed.ingredients,
+        instruction_tools: parsed.tools,
         instructions: recipe.instructions,
         cookTime: recipe.cookTime,
         servings: recipe.servings,
@@ -96,18 +100,19 @@ Format:
         rating: recipe.rating,
         availableIngredients: recipe.availableIngredients,
         totalIngredients: recipe.totalIngredients,
+        image_url: imageUrl,
       })
       .select('*')
       .single();
 
     if (insertRecipeError) {
-      console.error('Error saving recipe:', insertRecipeError);
+      console.error('❌ Error saving recipe:', insertRecipeError);
       return null;
     }
 
-    console.log('Recipe saved with ingredients:', recipe.recipe_name);
+    console.log('✅ Recipe saved:', recipe.recipe_name);
 
-    // 5. Save image URL to the 'images' table
+    // 🖼️ 4. Save image metadata
     if (imageUrl) {
       const { error: imageInsertError } = await supabase
         .from('images')
@@ -119,25 +124,24 @@ Format:
         });
 
       if (imageInsertError) {
-        console.error('Error saving image URL:', imageInsertError);
+        console.error('❌ Error saving image URL:', imageInsertError);
       } else {
-        console.log('Image URL saved in images table:', imageUrl);
+        console.log('🖼️ Image URL saved:', imageUrl);
       }
     }
 
-    // 6. Save ingredients separately
+    // 🔗 5. Link ingredients
     if (recipe.ingredients && recipe.ingredients.length > 0) {
       await saveIngredientsForRecipe(recipeData.id, recipe.ingredients);
     }
 
     return recipeData;
   } catch (err) {
-    console.error('Unexpected error in saveRecipeToSupabase:', err);
+    console.error('🔥 Unexpected error in saveRecipeToSupabase:', err);
     return null;
   }
 };
 
-// 🧠 Handles separate ingredients table and linking to recipe_ingredients
 const saveIngredientsForRecipe = async (recipeId: string, ingredients: string[]) => {
   for (const ingredientName of ingredients) {
     try {
@@ -148,7 +152,7 @@ const saveIngredientsForRecipe = async (recipeId: string, ingredients: string[])
         .maybeSingle();
 
       if (checkIngredientError) {
-        console.error('Error checking ingredient:', checkIngredientError);
+        console.error('❌ Error checking ingredient:', checkIngredientError);
         continue;
       }
 
@@ -162,15 +166,15 @@ const saveIngredientsForRecipe = async (recipeId: string, ingredients: string[])
           .single();
 
         if (insertIngredientError) {
-          console.error('Error inserting ingredient:', insertIngredientError);
+          console.error('❌ Error inserting ingredient:', insertIngredientError);
           continue;
         }
 
         ingredientId = newIngredient.ingredient_id;
-        console.log('Created new ingredient:', ingredientName);
+        console.log('➕ Created new ingredient:', ingredientName);
       } else {
         ingredientId = existingIngredient.ingredient_id;
-        console.log('Using existing ingredient:', ingredientName);
+        console.log('✅ Using existing ingredient:', ingredientName);
       }
 
       const { error: linkError } = await supabase
@@ -181,10 +185,10 @@ const saveIngredientsForRecipe = async (recipeId: string, ingredients: string[])
         });
 
       if (linkError) {
-        console.error('Error linking ingredient to recipe:', linkError);
+        console.error('❌ Error linking ingredient to recipe:', linkError);
       }
     } catch (err) {
-      console.error('Error processing ingredient:', ingredientName, err);
+      console.error('❌ Error processing ingredient:', ingredientName, err);
     }
   }
 };

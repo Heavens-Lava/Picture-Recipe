@@ -37,9 +37,9 @@ export default function CameraScreen() {
   // Handle button press to navigate to Ingredients screen
   const navigateToIngredients = () => {
     // Log the current state for debugging
-    console.log('Ingredients array:', ingredients);
-    console.log('Recipes array:', recipes);
-    console.log('Last photo:', lastPhoto);
+    console.log('When navigating to ingredients: Ingredients array:', ingredients);
+    console.log('When navigating to ingredients: Recipes array:', recipes);
+    console.log('When navigating to ingredients: Last photo:', lastPhoto);
     
     // Convert arrays to JSON strings for proper passing through navigation
     const ingredientsParam = JSON.stringify(ingredients);

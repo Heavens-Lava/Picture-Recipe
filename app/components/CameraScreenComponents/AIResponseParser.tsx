@@ -51,7 +51,7 @@ const recipeBlocks = recipesText
       if (lines.length > 0) {
         // Extract recipe name (first line, removing bullet point)
         const recipeName = lines[0].replace(/^[-*•\d.\s)]+/, '').trim();
-        console.log(`🧾 Full block for "${recipeName}":\n`, block);
+        // console.log(`🧾 Full block for "${recipeName}":\n`, block);
 
         // Extract available ingredients (bracketed OR unbracketed)
         const availableMatch = block.match(/Available ingredients:\s*(?:\[(.*?)\]|(.*?)(?:\n|$))/i);
@@ -64,7 +64,7 @@ const recipeBlocks = recipesText
           .filter(ing => ing.length > 0);
 
         // ✅ Log extracted available ingredients
-        console.log(`🧪 ${recipeName} - Matched Ingredients from AI:`, availableIngredients);
+        // console.log(`🧪 ${recipeName} - Matched Ingredients from AI:`, availableIngredients);
 
         // Extract additional needed ingredients (bracketed OR unbracketed)
         const additionalMatch = block.match(/Additional needed:\s*(?:\[(.*?)\]|(.*?)(?:\n|$))/i);

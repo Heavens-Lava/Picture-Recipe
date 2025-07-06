@@ -1,14 +1,15 @@
 import openai from './openai';
 
 /**
- * Generates a recipe image using DALL·E and returns the image URL.
+ * Generates a recipe image using DALL·E and returns the image blob + metadata.
  * 
  * @param {string} recipeName - Name of the recipe for generating the image.
- * @returns {Promise<string | null>} - The URL of the generated image or null if the image generation fails.
+ * @returns {Promise<{ blob: Blob; url: string } | null>} - The image blob and URL or null on failure.
  */
-export const generateRecipeImage = async (recipeName: string): Promise<string | null> => {
+export const generateRecipeImage = async (
+  recipeName: string
+): Promise<{ blob: Blob; url: string } | null> => {
   try {
-    // Call DALL·E API to generate the image
     const response = await openai.images.generate({
       model: 'dall-e-3',
       prompt: `High quality, appetizing image of a dish called "${recipeName}". Styled like a cookbook photo.`,
@@ -16,10 +17,6 @@ export const generateRecipeImage = async (recipeName: string): Promise<string | 
       size: '1024x1024',
     });
 
-    // Log the full response to inspect its structure
-    console.log('DALL·E API response:', response);
-
-    // Ensure we have a valid URL in the response
     const url = response?.data?.[0]?.url;
 
     if (!url) {
@@ -27,10 +24,23 @@ export const generateRecipeImage = async (recipeName: string): Promise<string | 
       return null;
     }
 
-    console.log('Generated image URL:', url);
-    return url; // Return the image URL
+    console.log('🌐 Fetching DALL·E image from:', url);
+    const fetchResponse = await fetch(url);
+
+    if (!fetchResponse.ok) {
+      throw new Error(`Image fetch failed: ${fetchResponse.status}`);
+    }
+
+    const blob = await fetchResponse.blob();
+
+    if (blob.size === 0) {
+      throw new Error('Fetched image blob is 0 bytes.');
+    }
+
+    console.log('📦 DALL·E image blob size:', blob.size);
+    return { blob, url };
   } catch (error) {
-    console.error('❌ DALL·E error:', error);
-    return null; // Return null on error
+    console.error('❌ DALL·E image generation or fetch error:', error);
+    return null;
   }
 };

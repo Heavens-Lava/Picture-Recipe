@@ -15,7 +15,7 @@ import { supabase } from '../lib/supabase';
 import { useRouter } from 'expo-router';
 import { styles } from '../styles/Recipes.styles';
 import LottieView from 'lottie-react-native';
-import FastImage from 'expo-fast-image'; // ✅ Image component
+import FastImage from 'expo-fast-image';
 
 interface Recipe {
   id: string;
@@ -24,11 +24,11 @@ interface Recipe {
   servings?: number;
   difficulty?: 'Easy' | 'Medium' | 'Hard';
   rating?: number;
-  ingredients?: string[];
   availableIngredients?: number;
   totalIngredients?: number;
-  image_url?: string | null; // ✅ Added support for image URL
-  instructions?: string; // Ensure this field is present
+  image_url?: string | null;
+  instructions?: string;
+  instruction_ingredients?: string[];
 }
 
 export default function RecipesTab() {
@@ -42,7 +42,7 @@ export default function RecipesTab() {
     if (Platform.OS === 'android') {
       ToastAndroid.show(message, ToastAndroid.SHORT);
     } else {
-      console.log(message);
+      console.log("Message: ", message);
     }
   };
 
@@ -50,7 +50,9 @@ export default function RecipesTab() {
     setLoading(true);
     const { data, error } = await supabase
       .from('recipes')
-      .select('id, recipe_name, cookTime, servings, difficulty, rating, availableIngredients, totalIngredients, instructions') // Include instructions
+      .select(
+        'id, recipe_name, cookTime, servings, difficulty, rating, availableIngredients, totalIngredients, instructions, instruction_ingredients, image_url'
+      )
       .order('id', { ascending: true });
 
     if (error) {
@@ -58,25 +60,8 @@ export default function RecipesTab() {
     } else {
       const filtered = (data ?? []).filter(r => r.recipe_name && r.recipe_name.trim().length > 0);
       setRecipes(filtered);
-
-      // Fetch associated images
-      const recipeIds = filtered.map(recipe => recipe.id);
-      const { data: imagesData, error: imagesError } = await supabase
-        .from('images')
-        .select('recipe_name, url')
-        .in('recipe_name', filtered.map(recipe => recipe.recipe_name));
-
-      if (imagesError) {
-        console.error('Error fetching images:', imagesError);
-      } else {
-        // Attach the image URL to the corresponding recipe
-        const updatedRecipes = filtered.map(recipe => {
-          const image = imagesData.find(image => image.recipe_name === recipe.recipe_name);
-          return { ...recipe, image_url: image?.url || null };
-        });
-        setRecipes(updatedRecipes);
-      }
     }
+
     setLoading(false);
   };
 
@@ -115,7 +100,6 @@ export default function RecipesTab() {
           })
         }
       >
-        {/* ✅ Show image if available */}
         {recipe.image_url && (
           <FastImage
             source={{ uri: recipe.image_url }}
@@ -155,7 +139,14 @@ export default function RecipesTab() {
               </Text>
               <View style={styles.progressBar}>
                 <View
-                  style={[styles.progressFill, { width: `${(recipe.availableIngredients / recipe.totalIngredients) * 100 || 0}%` }]}
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${
+                        (recipe.availableIngredients / recipe.totalIngredients) * 100 || 0
+                      }%`,
+                    },
+                  ]}
                 />
               </View>
             </View>
@@ -182,18 +173,34 @@ export default function RecipesTab() {
 
       <View style={styles.filterContainer}>
         <TouchableOpacity
-          style={[styles.filterButton, selectedFilter === 'available' && styles.filterButtonActive]}
+          style={[
+            styles.filterButton,
+            selectedFilter === 'available' && styles.filterButtonActive,
+          ]}
           onPress={() => setSelectedFilter('available')}
         >
-          <Text style={[styles.filterButtonText, selectedFilter === 'available' && styles.filterButtonTextActive]}>
+          <Text
+            style={[
+              styles.filterButtonText,
+              selectedFilter === 'available' && styles.filterButtonTextActive,
+            ]}
+          >
             Ready to Cook
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.filterButton, selectedFilter === 'all' && styles.filterButtonActive]}
+          style={[
+            styles.filterButton,
+            selectedFilter === 'all' && styles.filterButtonActive,
+          ]}
           onPress={() => setSelectedFilter('all')}
         >
-          <Text style={[styles.filterButtonText, selectedFilter === 'all' && styles.filterButtonTextActive]}>
+          <Text
+            style={[
+              styles.filterButtonText,
+              selectedFilter === 'all' && styles.filterButtonTextActive,
+            ]}
+          >
             All Recipes
           </Text>
         </TouchableOpacity>

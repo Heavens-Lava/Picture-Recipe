@@ -4,7 +4,7 @@ import { Alert, Platform } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import openai from '../../lib/openai';
-import { saveRecipeToSupabase } from '../../lib/supabaseFunctions';
+// Removed saveRecipeToSupabase import because we no longer save here
 import { parseAIResponse } from './AIResponseParser';
 import type { ParsedRecipe } from './AIResponseParser';
 
@@ -19,7 +19,6 @@ export const useCameraLogic = () => {
   const [location, setLocation] = useState<'fridge' | 'pantry'>('fridge');
   const cameraRef = useRef<CameraView>(null);
   const [detailedRecipes, setDetailedRecipes] = useState<ParsedRecipe[]>([]);
-
 
   // Trigger haptic feedback for camera actions
   const triggerHaptic = () => {
@@ -105,19 +104,19 @@ Be specific about ingredient names and focus on recipes that maximize the use of
       });
 
       const aiText = response.choices[0]?.message?.content ?? '';
-      
+
       // Log the AI response
       console.log('=== AI RESPONSE ===');
       console.log('Full OpenAI Response:', aiText);
       console.log('=== END AI RESPONSE ===');
-      
+
       Alert.alert('AI Response', aiText);
 
       // Parse the response using the parser component
- const {
+      const {
         ingredients: ingredientsList,
         recipes: recipesList,
-        detailedRecipes: parsedDetails
+        detailedRecipes: parsedDetails,
       } = parseAIResponse(aiText);
 
       // Ensure ingredients is always an array (never null/undefined)
@@ -136,34 +135,12 @@ Be specific about ingredient names and focus on recipes that maximize the use of
       console.log('=== END VALIDATED DATA ===');
 
       // Generate a meal image based on the first suggested recipe
+      // (optional: you can use this for preview in UI)
       const firstRecipe = validRecipes.length > 0 ? validRecipes[0] : 'AI Recipe Suggestion';
       const recipeName = firstRecipe.replace(/^[-*\d.\s]+/, '').trim();
       const mealImageUrl = await generateMealImage(recipeName);
 
-      // Create a recipe object to save to Supabase with proper data types
-      const recipe = {
-        title: recipeName,
-        recipe_name: recipeName,
-        image_url: photo.uri,
-        ingredients: validIngredients, // Always an array, never null
-        instructions: aiText,
-        cookTime: '15 min',
-        servings: 2,
-        difficulty: 'Easy',
-        rating: 4,
-        availableIngredients: validIngredients.length,
-        totalIngredients: validIngredients.length,
-      };
-
-      // Save to Supabase with additional metadata
-      await saveRecipeToSupabase({
-        ...recipe,
-        image_url: photo.uri,
-        meal_image_url: mealImageUrl,
-        ...(parsedDetails?.length > 0 && {
-          detailed_recipes: JSON.stringify(parsedDetails),
-        }),
-      });
+      // NOTE: We no longer save to Supabase here — user will select recipes to save later
 
     } catch (err) {
       Alert.alert('Error', 'AI or Supabase request failed.');
@@ -215,10 +192,10 @@ Be specific about ingredient names and focus on recipes that maximize the use of
     isAnalyzing,
     ingredients,
     recipes,
-    detailedRecipes, 
+    detailedRecipes,
     location,
     cameraRef,
-    
+
     // Functions
     toggleCameraFacing,
     takePicture,
