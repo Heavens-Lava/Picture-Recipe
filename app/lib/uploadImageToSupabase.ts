@@ -1,21 +1,38 @@
 import { supabase } from './supabase';
 
 /**
- * Uploads a Blob image to Supabase Storage.
- * 
- * @param blob - The image blob to upload.
- * @param recipeName - The recipe name to use for naming the image.
- * @returns {Promise<string | null>} - Public URL of uploaded image or null on failure.
+ * Converts a Blob to Uint8Array using FileReader (React Native compatible).
  */
+const blobToUint8Array = (blob: Blob): Promise<Uint8Array> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onloadend = () => {
+      const arrayBuffer = reader.result as ArrayBuffer;
+      resolve(new Uint8Array(arrayBuffer));
+    };
+
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(blob);
+  });
+};
+
 export const uploadImageToSupabase = async (blob: Blob, recipeName: string) => {
   try {
-    if (blob.size === 0) throw new Error('Cannot upload empty image blob');
+    if (!blob || typeof blob.size !== 'number' || blob.size === 0) {
+      throw new Error('Invalid or empty image blob');
+    }
 
     const filePath = `recipe_images/${recipeName.replace(/\s+/g, '_').toLowerCase()}.png`;
 
+    // ✅ Convert blob to Uint8Array using FileReader (works in React Native)
+    const uint8Array = await blobToUint8Array(blob);
+
+    console.log('📤 Uploading image to Supabase. Byte length:', uint8Array.length);
+
     const { data, error } = await supabase.storage
       .from('images')
-      .upload(filePath, blob, {
+      .upload(filePath, uint8Array, {
         cacheControl: '3600',
         upsert: true,
         contentType: 'image/png',
