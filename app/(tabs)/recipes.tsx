@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 import { styles } from '../styles/Recipes.styles';
 import LottieView from 'lottie-react-native';
 import FastImage from 'expo-fast-image';
+import { useRequireAuth } from '../hooks/useRequireAuth';
 
 interface Recipe {
   id: string;
@@ -32,6 +33,8 @@ interface Recipe {
 }
 
 export default function RecipesTab() {
+      useRequireAuth(); // Ensure the user is authenticated before accessing this screen
+  
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'available'>('available');
   const [loading, setLoading] = useState(true);
@@ -46,24 +49,36 @@ export default function RecipesTab() {
     }
   };
 
-  const fetchRecipes = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('recipes')
-      .select(
-        'id, recipe_name, cookTime, servings, difficulty, rating, availableIngredients, totalIngredients, instructions, instruction_ingredients, image_url'
-      )
-      .order('id', { ascending: true });
+const fetchRecipes = async () => {
+  setLoading(true);
 
-    if (error) {
-      console.error('Error fetching recipes:', error);
-    } else {
-      const filtered = (data ?? []).filter(r => r.recipe_name && r.recipe_name.trim().length > 0);
-      setRecipes(filtered);
-    }
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  const userId = sessionData?.session?.user?.id;
 
+  if (!userId) {
+    console.error('❌ No user ID found. Cannot fetch user recipes.');
+    setRecipes([]);
     setLoading(false);
-  };
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from('recipes')
+    .select(
+      'id, recipe_name, cookTime, servings, difficulty, rating, availableIngredients, totalIngredients, instructions, instruction_ingredients, image_url'
+    )
+    .eq('user_id', userId) // 🔐 Filter by logged-in user
+    .order('id', { ascending: true });
+
+  if (error) {
+    console.error('❌ Error fetching recipes:', error);
+  } else {
+    const filtered = (data ?? []).filter(r => r.recipe_name && r.recipe_name.trim().length > 0);
+    setRecipes(filtered);
+  }
+
+  setLoading(false);
+};
 
   useEffect(() => {
     fetchRecipes();

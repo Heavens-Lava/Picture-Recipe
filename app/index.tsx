@@ -16,14 +16,14 @@ export default function WelcomeScreen() {
       <View style={styles.content}>
         <View style={styles.logoContainer}>
           <LottieView
-            source={require('../../assets/animations/camera.json')}
+            source={require('../assets/animations/camera.json')}
             autoPlay
             loop
             style={styles.lottieIcon}
           />
           <Text style={styles.logo}>Picture Recipes</Text>
           <LottieView
-            source={require('../../assets/animations/recipe.json')}
+            source={require('../assets/animations/recipe.json')}
             autoPlay
             loop
             style={styles.lottieIcon}

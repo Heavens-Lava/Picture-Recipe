@@ -16,6 +16,8 @@ import styles from '../styles/Ingredients.styles';
 import { saveIngredientsToGrocery, moveIngredientsToShoppingCart } from '../services/groceryService';
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRequireAuth } from '../hooks/useRequireAuth';
+
 
 interface IngredientsScreenParams {
   ingredients?: string | string[];
@@ -27,6 +29,8 @@ interface IngredientsScreenParams {
 }
 
 export default function IngredientsScreen() {
+      useRequireAuth(); // Ensure the user is authenticated before accessing this screen
+  
   const router = useRouter();
   const { ingredients, recipes, detailedRecipes } = useLocalSearchParams<IngredientsScreenParams>();
 

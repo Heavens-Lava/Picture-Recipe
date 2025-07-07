@@ -15,7 +15,7 @@ import { Plus, Check, ShoppingCart, Trash2, Camera, List, X } from 'lucide-react
 import { useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
-
+import { useRequireAuth } from '../hooks/useRequireAuth';
   import { useFocusEffect } from '@react-navigation/native';
 
 
@@ -28,6 +28,8 @@ interface GroceryItem {
 }
 
 export default function GroceryTab() {
+      useRequireAuth(); // Ensure the user is authenticated before accessing this screen
+  
   const [items, setItems] = useState<GroceryItem[]>([]);
   const [selectedTab, setSelectedTab] = useState<'needed' | 'cart'>('needed');
   const [showCartToast, setShowCartToast] = useState(false);
@@ -935,7 +937,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   emptyActionButton: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     paddingVertical: 20,
     paddingHorizontal: 20,

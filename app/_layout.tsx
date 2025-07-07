@@ -43,6 +43,7 @@ export default function RootLayout() {
         <Stack.Screen name="Signup"/>
         <Stack.Screen name="AccountCreatedSuccessfully"/>
         <Stack.Screen name="+not-found" />
+        <Stack.Screen name="CreateAccount" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
     </GestureHandlerRootView>

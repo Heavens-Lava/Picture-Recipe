@@ -11,11 +11,12 @@ import CameraViewComponent from '../components/CameraScreenComponents/CameraView
 import IngredientsDisplay from '../components/CameraScreenComponents/IngredientsDisplay';
 import RecipesDisplay from '../components/CameraScreenComponents/RecipesDisplay';
 import LocationToggle from '../components/CameraScreenComponents/LocationToggle';
-
+import { useRequireAuth } from '../hooks/useRequireAuth';
 // Import the custom hook
 import { useCameraLogic } from '../components/CameraScreenComponents/useCameraLogic';
 
 export default function CameraScreen() {
+    useRequireAuth(); // Ensure the user is authenticated before accessing this screen
   // Get all state and functions from the custom hook
   const {
     facing,

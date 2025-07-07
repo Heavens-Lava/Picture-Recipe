@@ -23,8 +23,8 @@ export default function AccountCreatedScreen() {
         {'\n'}Your recipes and grocery lists are now saved to your account and will be synced across all your devices.
       </Text>
 
-      <TouchableOpacity onPress={() => router.replace('/profile')} style={styles.button}>
-        <Text style={styles.buttonText}>Go to Profile</Text>
+      <TouchableOpacity onPress={() => router.replace('/')} style={styles.button}>
+        <Text style={styles.buttonText}>Go to Home</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );

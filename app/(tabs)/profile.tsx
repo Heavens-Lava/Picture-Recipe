@@ -283,22 +283,19 @@ export default function ProfileTab() {
 
   const getMenuOptions = (): MenuOption[] => {
     const baseOptions: MenuOption[] = [
-      {
-        icon: <Settings size={24} color="#6B7280" />,
-        label: 'Settings',
-        onPress: () => {
-          console.log('Settings pressed');
-          // router.push('/Settings');
-        },
-      },
-      {
-        icon: <Bell size={24} color="#6B7280" />,
-        label: 'Notifications',
-        onPress: () => {
-          console.log('Notifications pressed');
-          // router.push('/Notifications');
-        },
-      },
+  {
+  icon: <Settings size={24} color="#6B7280" />,
+  label: 'Settings',
+  onPress: () => router.push('../othertabs/Settings'),
+  },
+{
+  icon: <Bell size={24} color="#6B7280" />,
+  label: 'Notifications',
+  onPress: () => {
+    router.push('/othertabs/Notifications'); // ✅ updated path
+  },
+},
+
       {
         icon: <Heart size={24} color="#6B7280" />,
         label: 'Favorites',

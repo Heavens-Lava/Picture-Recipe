@@ -54,7 +54,7 @@ export default function Login() {
       Alert.alert('Success', 'Logged in successfully!', [
         {
           text: 'OK',
-          onPress: () => router.replace('/profile'), // Fixed: Changed from '/Profile' to '/profile'
+          onPress: () => router.replace('/'), 
         },
       ]);
     } catch (error) {
@@ -117,7 +117,7 @@ export default function Login() {
             <Text style={styles.buttonText}>{loading ? 'Please wait...' : 'Sign In'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => router.replace('/Signup')} style={styles.switchLink}>
+          <TouchableOpacity onPress={() => router.replace('./Signup')} style={styles.switchLink}>
             <Text style={styles.switchText}>
               Don't have an account? <Text style={styles.switchTextHighlight}>Sign up</Text>
             </Text>

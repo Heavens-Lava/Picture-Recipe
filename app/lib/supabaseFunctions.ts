@@ -1,3 +1,5 @@
+// supabaseFunctions.ts
+
 import { supabase } from './supabase';
 import openai from './openai';
 import { generateRecipeImage } from './generateImage';
@@ -18,6 +20,7 @@ export const saveRecipeToSupabase = async (recipe: {
   image_url?: string | null;
 }) => {
   try {
+    // Check if the recipe already exists
     const { data: existing, error: checkError } = await supabase
       .from('recipes')
       .select('id')
@@ -39,7 +42,7 @@ export const saveRecipeToSupabase = async (recipe: {
 
     let parsed: ParsedInstructions = { ingredients: [], tools: [], steps: [] };
 
-    // 🧠 1. Generate and parse instructions if missing
+    // 🧠 Generate instructions if needed
     if (!recipe.instructions || recipe.instructions.includes('Instructions will be generated')) {
       const prompt = `You're a professional chef. Create a full cooking guide using ONLY the ingredients listed.
 
@@ -76,18 +79,28 @@ Avoid introductions or extra commentary. Only provide the formatted recipe.`;
       }
     }
 
-    // 📸 2. Generate image and download blob
+    // 📸 Generate recipe image
     const generatedImage = await generateRecipeImage(recipe.recipe_name);
 
-    // 💾 Upload image to Supabase Storage for permanent URL
+    // 💾 Upload image to Supabase Storage
     const imageUrl = generatedImage
       ? await uploadImageToSupabase(generatedImage.blob, recipe.recipe_name)
       : null;
 
-    // 💾 3. Insert into recipes
+    // 👤 Get user ID from Supabase session
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    const userId = sessionData?.session?.user?.id;
+
+    if (!userId) {
+      console.error('❌ User not authenticated. Cannot save recipe.');
+      return null;
+    }
+
+    // 💾 Save recipe with user_id
     const { data: recipeData, error: insertRecipeError } = await supabase
       .from('recipes')
       .insert({
+        user_id: userId, // ✅ link to logged-in user
         title: recipe.title,
         recipe_name: recipe.recipe_name,
         ingredients: recipe.ingredients,
@@ -112,7 +125,7 @@ Avoid introductions or extra commentary. Only provide the formatted recipe.`;
 
     console.log('✅ Recipe saved:', recipe.recipe_name);
 
-    // 🖼️ 4. Save image metadata
+    // 🖼️ Save image URL metadata
     if (imageUrl) {
       const { error: imageInsertError } = await supabase
         .from('images')
@@ -130,7 +143,7 @@ Avoid introductions or extra commentary. Only provide the formatted recipe.`;
       }
     }
 
-    // 🔗 5. Link ingredients
+    // 🔗 Link ingredients to recipe
     if (recipe.ingredients && recipe.ingredients.length > 0) {
       await saveIngredientsForRecipe(recipeData.id, recipe.ingredients);
     }
