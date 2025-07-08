@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import LottieView from 'lottie-react-native';
+import SoundButton from './components/SoundButton';
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -36,9 +37,9 @@ export default function WelcomeScreen() {
           based on what you have.
         </Text>
 
-        <TouchableOpacity style={styles.button} onPress={goToCamera}>
+        <SoundButton style={styles.button} onPress={goToCamera}>
           <Text style={styles.buttonText}>📸 Start Scanning</Text>
-        </TouchableOpacity>
+        </SoundButton>
 
         <Text style={styles.extraInfo}>
           📝 With this app, you can automatically create grocery lists by just taking a picture!
