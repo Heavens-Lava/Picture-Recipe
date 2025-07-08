@@ -8,6 +8,9 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Share,
+  Linking,
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -19,7 +22,7 @@ import {
   Heart,
   Bell,
   CircleHelp as HelpCircle,
-  Share,
+  Share2,
   Star,
   LogIn,
   UserPlus,
@@ -281,69 +284,76 @@ export default function ProfileTab() {
     },
   ];
 
-  const getMenuOptions = (): MenuOption[] => {
-    const baseOptions: MenuOption[] = [
-  {
-  icon: <Settings size={24} color="#6B7280" />,
-  label: 'Settings',
-  onPress: () => router.push('../othertabs/Settings'),
-  },
-{
-  icon: <Bell size={24} color="#6B7280" />,
-  label: 'Notifications',
-  onPress: () => {
-    router.push('/othertabs/Notifications'); // ✅ updated path
-  },
-},
+const getMenuOptions = (): MenuOption[] => {
+  const baseOptions: MenuOption[] = [
+    {
+      icon: <Settings size={24} color="#6B7280" />,
+      label: 'Settings',
+      onPress: () => router.push('../othertabs/Settings'),
+    },
+    {
+      icon: <Bell size={24} color="#6B7280" />,
+      label: 'Notifications',
+      onPress: () => router.push('/othertabs/Notifications'),
+    },
+    {
+      icon: <Heart size={24} color="#6B7280" />,
+      label: 'Favorites',
+      onPress: () => router.push('/othertabs/Favorites'),
+    },
+    {
+      icon: <Share2 size={24} color="#6B7280" />,
+      label: 'Share App',
+      onPress: async () => {
+        try {
+          await Share.share({
+            message:
+              "Check out this amazing Picture Recipes app! 🍽️ Available now: https://yourapp.com",
+          });
+        } catch (error) {
+          Alert.alert('Error', 'Failed to open share dialog.');
+        }
+      },
+    },
+    {
+      icon: <Star size={24} color="#6B7280" />,
+      label: 'Rate App',
+      onPress: () => {
+        const url = Platform.select({
+          ios: 'itms-apps://itunes.apple.com/app/id0000000000',
+          android: 'market://details?id=com.yourapp.package',
+        });
 
-      {
-        icon: <Heart size={24} color="#6B7280" />,
-        label: 'Favorites',
-        onPress: () => {
-          console.log('Favorites pressed');
-          // router.push('/Favorites');
-        },
+        if (url) {
+          Linking.openURL(url).catch(() => {
+            Alert.alert('Error', 'Could not open the app store.');
+          });
+        }
       },
-      {
-        icon: <Share size={24} color="#6B7280" />,
-        label: 'Share App',
-        onPress: () => {
-          console.log('Share App pressed');
-          // Implement share functionality
-        },
+    },
+    {
+      icon: <HelpCircle size={24} color="#6B7280" />,
+      label: 'Help & Support',
+      onPress: () => {
+        router.push('/othertabs/HelpSupport');
       },
+    },
+  ];
+
+  if (isAuthenticated) {
+    return [
+      ...baseOptions,
       {
-        icon: <Star size={24} color="#6B7280" />,
-        label: 'Rate App',
-        onPress: () => {
-          console.log('Rate App pressed');
-          // Implement rate app functionality
-        },
-      },
-      {
-        icon: <HelpCircle size={24} color="#6B7280" />,
-        label: 'Help & Support',
-        onPress: () => {
-          console.log('Help & Support pressed');
-          // router.push('/Help');
-        },
+        icon: <LogOut size={24} color="#EF4444" />,
+        label: 'Logout',
+        onPress: handleLogout,
+        isDestructive: true,
       },
     ];
+  }
 
-    if (isAuthenticated) {
-      return [
-        ...baseOptions,
-        {
-          icon: <LogOut size={24} color="#EF4444" />,
-          label: 'Logout',
-          onPress: handleLogout,
-          isDestructive: true,
-        },
-      ];
-    }
-
-    return baseOptions;
-  };
+  return baseOptions;
+};
 
   const renderStatCard = (stat: StatItem, index: number) => (
     <View key={index} style={styles.statCard}>

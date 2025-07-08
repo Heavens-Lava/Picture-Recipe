@@ -10,7 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Clock, Users, Flame, Star, RefreshCw } from 'lucide-react-native';
+import { Clock, Users, Flame, Star, RefreshCw, Heart } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { useRouter } from 'expo-router';
 import { styles } from '../styles/Recipes.styles';
@@ -33,9 +33,9 @@ interface Recipe {
 }
 
 export default function RecipesTab() {
-      useRequireAuth(); // Ensure the user is authenticated before accessing this screen
-  
+  useRequireAuth();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'available'>('available');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -49,36 +49,49 @@ export default function RecipesTab() {
     }
   };
 
-const fetchRecipes = async () => {
-  setLoading(true);
+  const fetchFavorites = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('favorites')
+      .select('recipe_id')
+      .eq('user_id', userId);
+    if (error) {
+      console.error('❌ Error fetching favorites:', error);
+    } else {
+      setFavoriteIds(data?.map(fav => fav.recipe_id) ?? []);
+    }
+  };
 
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-  const userId = sessionData?.session?.user?.id;
+  const fetchRecipes = async () => {
+    setLoading(true);
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData?.session?.user?.id;
 
-  if (!userId) {
-    console.error('❌ No user ID found. Cannot fetch user recipes.');
-    setRecipes([]);
+    if (!userId) {
+      console.error('❌ No user ID found. Cannot fetch user recipes.');
+      setRecipes([]);
+      setLoading(false);
+      return;
+    }
+
+    await fetchFavorites(userId);
+
+    const { data, error } = await supabase
+      .from('recipes')
+      .select(
+        'id, recipe_name, cookTime, servings, difficulty, rating, availableIngredients, totalIngredients, instructions, instruction_ingredients, image_url'
+      )
+      .eq('user_id', userId)
+      .order('id', { ascending: true });
+
+    if (error) {
+      console.error('❌ Error fetching recipes:', error);
+    } else {
+      const filtered = (data ?? []).filter(r => r.recipe_name && r.recipe_name.trim().length > 0);
+      setRecipes(filtered);
+    }
+
     setLoading(false);
-    return;
-  }
-
-  const { data, error } = await supabase
-    .from('recipes')
-    .select(
-      'id, recipe_name, cookTime, servings, difficulty, rating, availableIngredients, totalIngredients, instructions, instruction_ingredients, image_url'
-    )
-    .eq('user_id', userId) // 🔐 Filter by logged-in user
-    .order('id', { ascending: true });
-
-  if (error) {
-    console.error('❌ Error fetching recipes:', error);
-  } else {
-    const filtered = (data ?? []).filter(r => r.recipe_name && r.recipe_name.trim().length > 0);
-    setRecipes(filtered);
-  }
-
-  setLoading(false);
-};
+  };
 
   useEffect(() => {
     fetchRecipes();
@@ -92,6 +105,28 @@ const fetchRecipes = async () => {
     });
   }, []);
 
+  const handleFavorite = async (recipeId: string) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData?.session?.user?.id;
+    if (!userId) return;
+
+    if (favoriteIds.includes(recipeId)) {
+      showToast('Already in favorites');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('favorites')
+      .insert({ user_id: userId, recipe_id: recipeId });
+
+    if (error) {
+      showToast('Error adding to favorites');
+    } else {
+      setFavoriteIds([...favoriteIds, recipeId]);
+      showToast('Added to favorites');
+    }
+  };
+
   const filteredRecipes =
     selectedFilter === 'available'
       ? recipes.filter(
@@ -104,6 +139,8 @@ const fetchRecipes = async () => {
       : recipes.filter(r => r.recipe_name?.trim());
 
   const renderRecipeCard = (recipe: Recipe) => {
+    const isFavorited = favoriteIds.includes(recipe.id);
+
     return (
       <TouchableOpacity
         key={recipe.id}
@@ -166,6 +203,18 @@ const fetchRecipes = async () => {
               </View>
             </View>
           )}
+
+          <TouchableOpacity
+            style={{ marginTop: 10 }}
+            onPress={() => handleFavorite(recipe.id)}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Heart size={16} color="#EF4444" />
+              <Text style={{ marginLeft: 6, color: '#EF4444' }}>
+                {isFavorited ? 'Favorited' : 'Add to Favorites'}
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );

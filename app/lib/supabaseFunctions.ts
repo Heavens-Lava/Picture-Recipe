@@ -125,6 +125,9 @@ Avoid introductions or extra commentary. Only provide the formatted recipe.`;
 
     console.log('✅ Recipe saved:', recipe.recipe_name);
 
+    // 🔔 Create notification for new recipe added
+    await createNotification(userId, 'New Recipe Unlocked', `You added a new recipe: "${recipe.recipe_name}"!`);
+
     // 🖼️ Save image URL metadata
     if (imageUrl) {
       const { error: imageInsertError } = await supabase
@@ -203,5 +206,25 @@ const saveIngredientsForRecipe = async (recipeId: string, ingredients: string[])
     } catch (err) {
       console.error('❌ Error processing ingredient:', ingredientName, err);
     }
+  }
+};
+
+const createNotification = async (userId: string, title: string, message: string) => {
+  try {
+    const { error } = await supabase.from('notifications').insert({
+      user_id: userId,
+      title,
+      message,
+      read: false,
+      created_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      console.error('❌ Error creating notification:', error);
+    } else {
+      console.log(`🔔 Notification created: ${title}`);
+    }
+  } catch (err) {
+    console.error('❌ Unexpected error creating notification:', err);
   }
 };

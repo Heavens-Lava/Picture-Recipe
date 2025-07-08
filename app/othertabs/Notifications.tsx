@@ -1,36 +1,84 @@
 // app/othertabs/Notifications.tsx
 
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Bell, CalendarDays, ChefHat, Info, X } from 'lucide-react-native';
 import { router } from 'expo-router';
+import { supabase } from '../lib/supabase'; // Adjust path if needed
 
-const mockNotifications = [
-  {
-    id: 1,
-    icon: <ChefHat size={20} color="#059669" />,
-    title: 'New Recipe Unlocked!',
-    message: 'Try out the new “Spicy Chickpea Bowl” today!',
-    time: '2h ago',
-  },
-  {
-    id: 2,
-    icon: <CalendarDays size={20} color="#F59E0B" />,
-    title: 'Grocery List Reminder',
-    message: 'You have 3 items still unchecked on your list.',
-    time: '1 day ago',
-  },
-  {
-    id: 3,
-    icon: <Info size={20} color="#3B82F6" />,
-    title: 'App Update',
-    message: 'New AI recipe planner feature now live!',
-    time: '3 days ago',
-  },
-];
+type Notification = {
+  id: number;
+  title: string;
+  message: string;
+  read: boolean;
+  created_at: string;
+  // add other fields as needed
+};
 
 export default function Notifications() {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Map titles or categories to icons
+  const getIcon = (title: string) => {
+    if (title.toLowerCase().includes('recipe')) return <ChefHat size={20} color="#059669" />;
+    if (title.toLowerCase().includes('grocery')) return <CalendarDays size={20} color="#F59E0B" />;
+    if (title.toLowerCase().includes('update')) return <Info size={20} color="#3B82F6" />;
+    return <Bell size={20} color="#6B7280" />;
+  };
+
+  // Format time (basic)
+  const timeAgo = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMinutes = Math.floor(diffMs / 60000);
+
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  };
+
+  const fetchNotifications = async () => {
+    setLoading(true);
+
+    try {
+      // Get user session
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
+
+      if (!userId) {
+        console.error('User not authenticated.');
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching notifications:', error);
+      } else if (data) {
+        setNotifications(data);
+      }
+    } catch (err) {
+      console.error('Unexpected error fetching notifications:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -41,18 +89,28 @@ export default function Notifications() {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {mockNotifications.map((item) => (
-          <View key={item.id} style={styles.card}>
-            <View style={styles.icon}>{item.icon}</View>
-            <View style={styles.textContent}>
-              <Text style={styles.title}>{item.title}</Text>
-              <Text style={styles.message}>{item.message}</Text>
-              <Text style={styles.time}>{item.time}</Text>
-            </View>
-          </View>
-        ))}
-      </ScrollView>
+      {loading ? (
+        <ActivityIndicator style={{ marginTop: 20 }} size="large" color="#059669" />
+      ) : (
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {notifications.length === 0 ? (
+            <Text style={{ color: '#6B7280', textAlign: 'center', marginTop: 20 }}>
+              No notifications yet.
+            </Text>
+          ) : (
+            notifications.map((item) => (
+              <View key={item.id} style={styles.card}>
+                <View style={styles.icon}>{getIcon(item.title)}</View>
+                <View style={styles.textContent}>
+                  <Text style={styles.title}>{item.title}</Text>
+                  <Text style={styles.message}>{item.message}</Text>
+                  <Text style={styles.time}>{timeAgo(item.created_at)}</Text>
+                </View>
+              </View>
+            ))
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
